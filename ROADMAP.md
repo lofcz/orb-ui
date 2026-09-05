@@ -67,6 +67,10 @@ Completed direction:
 - `cloud`: atmospheric blue-violet sphere with a solid-dot-to-fluid connection entrance,
   state-paced internal cloud motion, opposing input/output volume response, and passive
   external-control support
+- `ocean`: a glass sphere holding a calm sea, built for long, trust-centred conversations. The
+  waterline breathes while idle, ripples with human input, swells and foams with agent output, and
+  the inner light pulses while thinking. First theme with light/dark presets (`scheme`) and hex
+  overrides (`palette`)
 
 Before naming another public theme, validate the visual direction against direct product UI research
 and a concrete interaction reference.

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Orb } from '@lofcz/orb-ui'
-import type { OrbSignal, OrbState, OrbTheme } from '@lofcz/orb-ui'
+import type { OrbScheme, OrbSignal, OrbState, OrbTheme } from '@lofcz/orb-ui'
 import { highlightTsx } from './syntax-highlight'
 
 // Constants
 const STATES: OrbState[] = ['idle', 'connecting', 'listening', 'thinking', 'speaking', 'error']
-const THEMES: OrbTheme[] = ['circle', 'bars', 'cloud', 'radial', 'debug']
+const THEMES: OrbTheme[] = ['circle', 'bars', 'cloud', 'radial', 'ocean', 'debug']
 const GITHUB_REPO_URL = 'https://github.com/lofcz/orb-ui'
 const GITHUB_STAR_COLOR = '#8bc7ff'
 
@@ -393,6 +393,7 @@ export default function App() {
   const [simulationStartedAt] = useState(nowMs)
   const simulation = useConversationSimulation(simulationStartedAt)
   const [theme, setTheme] = useState<OrbTheme>('cloud')
+  const [scheme, setScheme] = useState<OrbScheme>('dark')
   const [mode, setMode] = useState<DemoMode>('simulation')
   const [manualState, setManualState] = useState<OrbState>('idle')
   const [manualVolume, setManualVolume] = useState(0)
@@ -1776,9 +1777,17 @@ export default function App() {
               </span>
             </div>
 
-            <div className="voice-stage__surface">
+            <div
+              className="voice-stage__surface"
+              style={
+                theme === 'ocean' && scheme === 'light'
+                  ? { background: '#edf3f6', borderRadius: 20 }
+                  : undefined
+              }
+            >
               <Orb
                 theme={theme}
+                scheme={scheme}
                 size={280}
                 signal={activeOrb.signal}
                 data-testid="orb-demo-visual"
@@ -1808,6 +1817,25 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
+                {theme === 'ocean' && (
+                  <div>
+                    <span className="control-label">Surface</span>
+                    <div className="segmented-control" role="group" aria-label="Surface">
+                      {(['light', 'dark'] as const).map((nextScheme) => (
+                        <button
+                          key={nextScheme}
+                          type="button"
+                          className="segmented-button"
+                          aria-pressed={scheme === nextScheme}
+                          onClick={() => setScheme(nextScheme)}
+                        >
+                          {nextScheme}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <span className="control-label">Signal source</span>

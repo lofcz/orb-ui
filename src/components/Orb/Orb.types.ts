@@ -7,7 +7,29 @@ export type OrbStyle = CSSProperties & {
 
 export type OrbState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
 
-export type OrbTheme = 'debug' | 'circle' | 'bars' | 'cloud' | 'radial'
+export type OrbTheme = 'debug' | 'circle' | 'bars' | 'cloud' | 'radial' | 'ocean'
+
+/** Light or dark surroundings; themes with both presets pick their colors from it. */
+export type OrbScheme = 'light' | 'dark'
+
+/**
+ * Hex colors a palette-aware theme reads. Every field is optional; whatever is
+ * left out comes from the theme's preset for the active scheme.
+ */
+export interface OrbPalette {
+  /** The darkest water, at the bottom of the orb. */
+  deep?: string
+  /** Sunlit water just below the surface. */
+  shallow?: string
+  /** Foam on the waterline and the glass rim. */
+  foam?: string
+  /** The light source: sun by day, moon by night. Also drives the halo. */
+  glow?: string
+  /** The air at the top of the orb. */
+  sky?: string
+  /** The air just above the waterline. */
+  horizon?: string
+}
 
 export interface OrbSignal {
   state: OrbState
@@ -78,6 +100,18 @@ export interface OrbProps extends OrbHtmlAttributes {
 
   /** Size in pixels. Defaults to 200. */
   size?: number
+
+  /**
+   * Light or dark surroundings. Palette-aware themes (`ocean`) switch presets
+   * on it; other themes ignore it. Defaults to 'light'.
+   */
+  scheme?: OrbScheme
+
+  /**
+   * Color overrides for palette-aware themes (`ocean`). Merged over the preset
+   * selected by `scheme`; other themes ignore it.
+   */
+  palette?: OrbPalette
 
   /** Optional class name for the rendered orb container/control. */
   className?: string

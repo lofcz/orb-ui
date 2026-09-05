@@ -1,5 +1,11 @@
 # orb-ui
 
+## 0.8.0
+
+### Minor Changes
+
+- Add the `ocean` WebGL theme: a glass sphere holding a calm sea whose waterline breathes while idle, ripples with input, swells and foams with output, and glows while thinking. Introduce the `scheme` (`'light' | 'dark'`) and `palette` (hex overrides) props for palette-aware themes.
+
 ## 0.7.0
 
 ### Minor Changes

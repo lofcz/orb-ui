@@ -12,8 +12,7 @@ export interface OutputVolumeCalibration {
 }
 
 export type OutputVolumeCalibrationSource =
-  | Partial<OutputVolumeCalibration>
-  | (() => Partial<OutputVolumeCalibration>)
+  Partial<OutputVolumeCalibration> | (() => Partial<OutputVolumeCalibration>)
 
 export interface OutputVolumeSample {
   /** Unmodified RMS value measured from the provider audio stream. */

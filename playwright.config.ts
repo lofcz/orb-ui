@@ -15,8 +15,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command:
-      'bunx vite --config tests/e2e/fixture/vite.config.ts --host 127.0.0.1 --port 4173',
+    command: 'bunx vite --config tests/e2e/fixture/vite.config.ts --host 127.0.0.1 --port 4173',
     reuseExistingServer: true,
     timeout: 120_000,
     url: 'http://127.0.0.1:4173',

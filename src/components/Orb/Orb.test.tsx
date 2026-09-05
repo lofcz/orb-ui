@@ -107,6 +107,38 @@ describe('Orb accessibility', () => {
     expect(html).toContain('var(--orb-ui-radial-control-surround)')
   })
 
+  it('renders the ocean theme as a passive visual with a halo and surface', () => {
+    const html = renderToStaticMarkup(
+      <Orb
+        adapter={createAdapter()}
+        theme="ocean"
+        interactive={false}
+        scheme="dark"
+        palette={{ glow: '#ffd9a0' }}
+        data-testid="ocean-orb"
+      />,
+    )
+
+    expect(html).toContain('<canvas')
+    expect(html).toContain('data-ocean-surface=""')
+    expect(html).toContain('data-ocean-halo=""')
+    expect(html).toContain('data-testid="ocean-orb"')
+    expect(html).toContain('rgba(255, 217, 160, 0.55)')
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('scheme=')
+    expect(html).not.toContain('palette=')
+  })
+
+  it('renders the ocean theme as a labelled button when it controls the session', () => {
+    const html = renderToStaticMarkup(
+      <Orb adapter={createAdapter()} theme="ocean" aria-label="Start ocean voice assistant" />,
+    )
+
+    expect(html).toContain('<button')
+    expect(html).toContain('aria-label="Start ocean voice assistant"')
+    expect(html).toContain('data-ocean-surface=""')
+  })
+
   it('preserves consumer style overrides on clickable themes', () => {
     const html = renderToStaticMarkup(
       <Orb

@@ -80,7 +80,7 @@ const PIPECAT_CONNECTION_MODES: Array<{ id: PipecatConnectionMode; label: string
   { id: 'small-webrtc', label: 'Self-hosted WebRTC' },
 ]
 
-const THEMES: OrbTheme[] = ['radial', 'cloud', 'circle', 'bars', 'debug']
+const THEMES: OrbTheme[] = ['radial', 'cloud', 'ocean', 'circle', 'bars', 'debug']
 const STATES: OrbState[] = ['idle', 'connecting', 'listening', 'thinking', 'speaking', 'error']
 const DEFAULT_LIVEKIT_ROOM_PREFIX = 'orb-ui-playground'
 const DEFAULT_OPENAI_MODEL = 'gpt-realtime-2.1'
@@ -644,7 +644,7 @@ function createProviderAdapter(
     return createLazyAdapter(async () => {
       if (config.liveKitConnectionMode === 'sandbox') {
         const { createLiveKitAdapter: createManagedLiveKitAdapter } =
-          await import('orb-ui/adapters/livekit')
+          await import('@lofcz/orb-ui/adapters/livekit')
         return createManagedLiveKitAdapter({
           sandboxId: config.liveKitSandboxId,
           agentName: config.liveKitAgentName,
@@ -656,7 +656,7 @@ function createProviderAdapter(
 
       if (config.liveKitConnectionMode === 'endpoint') {
         const { createLiveKitAdapter: createManagedLiveKitAdapter } =
-          await import('orb-ui/adapters/livekit')
+          await import('@lofcz/orb-ui/adapters/livekit')
         return createManagedLiveKitAdapter({
           tokenEndpoint: config.liveKitTokenEndpoint,
           agentName: config.liveKitAgentName,

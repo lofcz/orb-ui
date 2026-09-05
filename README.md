@@ -274,7 +274,7 @@ For an app-owned voice stack (Gemini Live, custom Web Audio), keep session contr
 ```tsx
 import { Orb } from '@lofcz/orb-ui'
 
-<Orb
+;<Orb
   signal={{ state: 'listening', inputVolume: 0.4, outputVolume: 0 }}
   interactive={false}
   renderTheme={({ rootProps, state, activity, inputVolume, outputVolume }) => (
@@ -292,22 +292,24 @@ import { Orb } from '@lofcz/orb-ui'
 
 ## Props
 
-| Prop          | Type                                                   | Default   | Description                                             |
-| ------------- | ------------------------------------------------------ | --------- | ------------------------------------------------------- |
-| `theme`       | `'debug' \| 'circle' \| 'bars' \| 'cloud' \| 'radial'` | `'debug'` | Visual theme                                            |
-| `signal`      | `OrbSignal`                                            | —         | Rich controlled signal with state/input/output volume   |
-| `state`       | `OrbState`                                             | `'idle'`  | Conversation state (controlled mode)                    |
-| `volume`      | `number`                                               | `0`       | Audio volume, 0–1. Overrides signal/adapter volume.     |
-| `adapter`     | `OrbAdapter`                                           | —         | Provider adapter (manages signal updates automatically) |
-| `size`        | `number`                                               | `200`     | Size in pixels                                          |
-| `className`   | `string`                                               | —         | Optional class name for the rendered theme              |
-| `style`       | `OrbStyle`                                             | —         | Inline styles, including radial control surround color  |
-| `disabled`    | `boolean`                                              | `false`   | Disables clickable themes and debug start/stop controls |
-| `interactive` | `boolean`                                              | `true`    | Allows the theme control to start and stop a session    |
-| `aria-label`  | `string`                                               | generated | Accessible label for clickable visual themes            |
-| `onStart`     | `() => void`                                           | —         | Custom start handler (overrides adapter.start())        |
-| `onStop`      | `() => void`                                           | —         | Custom stop handler (overrides adapter.stop())          |
-| `renderTheme` | `OrbThemeRenderer`                                     | —         | Custom artwork; Orb still owns state and volume         |
+| Prop          | Type                                                              | Default   | Description                                             |
+| ------------- | ----------------------------------------------------------------- | --------- | ------------------------------------------------------- |
+| `theme`       | `'debug' \| 'circle' \| 'bars' \| 'cloud' \| 'radial' \| 'ocean'` | `'debug'` | Visual theme                                            |
+| `scheme`      | `'light' \| 'dark'`                                               | `'light'` | Preset selector for palette-aware themes (`ocean`)      |
+| `palette`     | `OrbPalette`                                                      | —         | Hex color overrides for palette-aware themes (`ocean`)  |
+| `signal`      | `OrbSignal`                                                       | —         | Rich controlled signal with state/input/output volume   |
+| `state`       | `OrbState`                                                        | `'idle'`  | Conversation state (controlled mode)                    |
+| `volume`      | `number`                                                          | `0`       | Audio volume, 0–1. Overrides signal/adapter volume.     |
+| `adapter`     | `OrbAdapter`                                                      | —         | Provider adapter (manages signal updates automatically) |
+| `size`        | `number`                                                          | `200`     | Size in pixels                                          |
+| `className`   | `string`                                                          | —         | Optional class name for the rendered theme              |
+| `style`       | `OrbStyle`                                                        | —         | Inline styles, including radial control surround color  |
+| `disabled`    | `boolean`                                                         | `false`   | Disables clickable themes and debug start/stop controls |
+| `interactive` | `boolean`                                                         | `true`    | Allows the theme control to start and stop a session    |
+| `aria-label`  | `string`                                                          | generated | Accessible label for clickable visual themes            |
+| `onStart`     | `() => void`                                                      | —         | Custom start handler (overrides adapter.start())        |
+| `onStop`      | `() => void`                                                      | —         | Custom stop handler (overrides adapter.stop())          |
+| `renderTheme` | `OrbThemeRenderer`                                                | —         | Custom artwork; Orb still owns state and volume         |
 
 ## States
 
@@ -315,14 +317,14 @@ import { Orb } from '@lofcz/orb-ui'
 
 ## Supported Providers
 
-| Provider                                                                  | Adapter                                                               |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| [Vapi](https://vapi.ai)                                                   | `createVapiAdapter` from `@lofcz/orb-ui/adapters`                            |
-| [ElevenLabs](https://elevenlabs.io/conversational-ai)                     | `createElevenLabsAdapter` from `@lofcz/orb-ui/adapters`                      |
-| [LiveKit](https://livekit.io)                                             | `createLiveKitAdapter` from `@lofcz/orb-ui/adapters`                         |
-| [Pipecat](https://pipecat.ai)                                             | `createPipecatAdapter` from `@lofcz/orb-ui/adapters`                         |
-| [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime) | `createOpenAIRealtimeAdapter` from `@lofcz/orb-ui/adapters`                  |
-| [Gemini Live](https://ai.google.dev/gemini-api/docs/live-api)             | `createGeminiLiveAdapter` from `@lofcz/orb-ui/adapters`                      |
+| Provider                                                                  | Adapter                                                                   |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [Vapi](https://vapi.ai)                                                   | `createVapiAdapter` from `@lofcz/orb-ui/adapters`                         |
+| [ElevenLabs](https://elevenlabs.io/conversational-ai)                     | `createElevenLabsAdapter` from `@lofcz/orb-ui/adapters`                   |
+| [LiveKit](https://livekit.io)                                             | `createLiveKitAdapter` from `@lofcz/orb-ui/adapters`                      |
+| [Pipecat](https://pipecat.ai)                                             | `createPipecatAdapter` from `@lofcz/orb-ui/adapters`                      |
+| [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime) | `createOpenAIRealtimeAdapter` from `@lofcz/orb-ui/adapters`               |
+| [Gemini Live](https://ai.google.dev/gemini-api/docs/live-api)             | `createGeminiLiveAdapter` from `@lofcz/orb-ui/adapters`                   |
 | Custom / Gemini Live (app-owned session)                                  | Controlled mode — pass `signal` or `state` + `volume`, plus `renderTheme` |
 
 ## Development

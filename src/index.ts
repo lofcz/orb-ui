@@ -1,7 +1,9 @@
 export { Orb } from './components/Orb'
 export type {
   OrbAdapter,
+  OrbPalette,
   OrbProps,
+  OrbScheme,
   OrbSignal,
   OrbSignalListener,
   OrbState,

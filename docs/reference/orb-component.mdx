@@ -41,7 +41,7 @@ Use these states consistently across providers so your product has one voice UI 
 ## Themes
 
 ```ts
-type OrbTheme = 'debug' | 'circle' | 'bars' | 'cloud' | 'radial'
+type OrbTheme = 'debug' | 'circle' | 'bars' | 'cloud' | 'radial' | 'ocean'
 ```
 
 - `debug`: visible state and start/stop controls while integrating.
@@ -49,6 +49,7 @@ type OrbTheme = 'debug' | 'circle' | 'bars' | 'cloud' | 'radial'
 - `bars`: waveform-like audio activity.
 - `cloud`: a soft atmospheric sphere with opposing input/output scale response.
 - `radial`: a four-lobe field with an input-reactive membrane and output-reactive twist.
+- `ocean`: a glass sphere with a calm sea inside. The waterline breathes while idle, ripples with input, swells and foams with output, and the light inside pulses while thinking. Ships light and dark presets (`scheme`) and takes hex overrides through `palette`.
 
 When an adapter or `onStart`/`onStop` handler is provided, visual themes include a `<button type="button">` control with native keyboard activation. `radial` uses a separate phone button while the other clickable visuals use the artwork itself. If there is no visible label, pass `aria-label`.
 
@@ -58,6 +59,19 @@ surface:
 
 ```tsx
 <Orb adapter={adapter} theme="radial" style={{ '--orb-ui-radial-control-surround': '#101010' }} />
+```
+
+The ocean theme follows the surrounding surface through `scheme`, and any of its six colors can be
+replaced with a hex value:
+
+```tsx
+<Orb
+  adapter={adapter}
+  theme="ocean"
+  scheme="dark"
+  palette={{ glow: '#ffd9a0', deep: '#03101f' }}
+  interactive={false}
+/>
 ```
 
 Set `interactive={false}` when the orb is only a visual status surface. The adapter remains the

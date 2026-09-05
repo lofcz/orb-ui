@@ -193,8 +193,7 @@ type LiveKitManagedConfig<TTrack = unknown> =
   | LiveKitStaticConnectionConfig<TTrack>
 
 export type LiveKitAdapterConfig<TTrack = unknown> =
-  | LiveKitRoomConfig<TTrack>
-  | LiveKitManagedConfig<TTrack>
+  LiveKitRoomConfig<TTrack> | LiveKitManagedConfig<TTrack>
 
 export interface LiveKitOrbAdapter extends OrbAdapter {
   /** Connect to the LiveKit room and start tracking agent state. */
@@ -288,16 +287,14 @@ function findAgentParticipant(room: LKRoom): LKParticipant | null {
 
 function removeRoomListener(room: LKRoom, event: string, listener: (...args: unknown[]) => void) {
   const off = room.off as
-    | ((event: string, listener: (...args: unknown[]) => void) => void)
-    | undefined
+    ((event: string, listener: (...args: unknown[]) => void) => void) | undefined
   if (off) {
     off.call(room, event, listener)
     return
   }
 
   const removeListener = room.removeListener as
-    | ((event: string, listener: (...args: unknown[]) => void) => void)
-    | undefined
+    ((event: string, listener: (...args: unknown[]) => void) => void) | undefined
   removeListener?.call(room, event, listener)
 }
 
