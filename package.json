@@ -1,11 +1,12 @@
 {
-  "name": "orb-ui",
+  "name": "@lofcz/orb-ui",
   "version": "0.7.0",
   "description": "React voice agent UI components with audio-reactive adapters for Vapi, ElevenLabs, LiveKit, Pipecat, OpenAI Realtime, Gemini Live, and custom voice AI apps.",
   "type": "module",
   "main": "./dist/orb-ui.cjs",
   "module": "./dist/orb-ui.js",
   "types": "./dist/index.d.ts",
+  "workspaces": ["demo"],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,27 +24,26 @@
       "require": "./dist/livekit-adapter.cjs"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc && vite build",
-    "build:demo": "pnpm --filter orb-ui-demo build",
-    "changeset": "changeset",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm typecheck:examples && pnpm test && pnpm build && pnpm typecheck:package && pnpm typecheck:demo && pnpm build:demo && pnpm test:e2e:built",
+    "build:demo": "bun run --cwd demo build",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run typecheck:examples && bun run test && bun run build && bun run typecheck:package && bun run typecheck:demo && bun run build:demo && bun run test:e2e:built",
     "dev": "vite build --watch",
-    "dev:demo": "pnpm --filter orb-ui-demo dev",
+    "dev:demo": "bun run --cwd demo dev",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "generate:og": "node scripts/generate-og-image.mjs",
     "typecheck": "tsc --noEmit",
-    "typecheck:demo": "pnpm --filter orb-ui-demo typecheck",
+    "typecheck:demo": "bun run --cwd demo typecheck",
     "typecheck:examples": "tsc -p tsconfig.type-tests.json --noEmit",
     "typecheck:package": "tsc -p tsconfig.package-types.json --noEmit",
     "lint": "eslint .",
-    "release": "pnpm build && changeset publish",
     "test": "vitest run --passWithNoTests",
-    "test:e2e": "pnpm build && pnpm test:e2e:built",
+    "test:e2e": "bun run build && bun run test:e2e:built",
     "test:e2e:built": "tsc -p tests/e2e/tsconfig.json --noEmit && playwright test",
     "test:watch": "vitest"
   },
@@ -58,7 +58,6 @@
     }
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
     "@elevenlabs/client": "1.9.0",
     "@eslint/js": "^10.0.1",
     "@google/genai": "2.11.0",
@@ -106,20 +105,18 @@
   ],
   "license": "MIT",
   "author": "Alexander Chen",
-  "homepage": "https://orb-ui.com",
+  "homepage": "https://github.com/lofcz/orb-ui#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alexanderqchen/orb-ui.git"
+    "url": "git+https://github.com/lofcz/orb-ui.git"
   },
-  "packageManager": "pnpm@10.33.1",
+  "bugs": {
+    "url": "https://github.com/lofcz/orb-ui/issues"
+  },
   "typesVersions": {
     "*": {
-      "adapters": [
-        "./dist/adapters/index.d.ts"
-      ],
-      "adapters/livekit": [
-        "./dist/adapters/livekit/browser.d.ts"
-      ]
+      "adapters": ["./dist/adapters/index.d.ts"],
+      "adapters/livekit": ["./dist/adapters/livekit/browser.d.ts"]
     }
   }
 }

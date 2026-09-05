@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Orb } from 'orb-ui'
-import type { OrbSignal, OrbState, OrbTheme } from 'orb-ui'
+import { Orb } from '@lofcz/orb-ui'
+import type { OrbSignal, OrbState, OrbTheme } from '@lofcz/orb-ui'
 import { highlightTsx } from './syntax-highlight'
 
 // Constants
 const STATES: OrbState[] = ['idle', 'connecting', 'listening', 'thinking', 'speaking', 'error']
 const THEMES: OrbTheme[] = ['circle', 'bars', 'cloud', 'radial', 'debug']
-const GITHUB_REPO_URL = 'https://github.com/alexanderqchen/orb-ui'
+const GITHUB_REPO_URL = 'https://github.com/lofcz/orb-ui'
 const GITHUB_STAR_COLOR = '#8bc7ff'
 
 type DemoMode = 'simulation' | 'manual'
@@ -30,8 +30,8 @@ const MONOSPACE_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace'
 
 const VAPI_CODE = `import Vapi from "@vapi-ai/web"
-import { Orb } from "orb-ui"
-import { createVapiAdapter } from "orb-ui/adapters"
+import { Orb } from "@lofcz/orb-ui"
+import { createVapiAdapter } from "@lofcz/orb-ui/adapters"
 
 const vapi = new Vapi("your-public-key")
 const adapter = createVapiAdapter(vapi, {
@@ -43,8 +43,8 @@ export function VoiceOrb() {
 }`
 
 const ELEVENLABS_CODE = `import { Conversation } from "@elevenlabs/client"
-import { Orb } from "orb-ui"
-import { createElevenLabsAdapter } from "orb-ui/adapters"
+import { Orb } from "@lofcz/orb-ui"
+import { createElevenLabsAdapter } from "@lofcz/orb-ui/adapters"
 
 const adapter = createElevenLabsAdapter(Conversation, {
   agentId: "your-agent-id"
@@ -54,8 +54,8 @@ export function VoiceOrb() {
   return <Orb adapter={adapter} theme="circle" aria-label="Start voice assistant" />
 }`
 
-const CUSTOM_CODE = `import { Orb } from "orb-ui"
-import type { OrbAdapter } from "orb-ui"
+const CUSTOM_CODE = `import { Orb } from "@lofcz/orb-ui"
+import type { OrbAdapter } from "@lofcz/orb-ui"
 
 const adapter: OrbAdapter = {
   subscribe(listener) {
@@ -77,8 +77,8 @@ export function VoiceOrb() {
   return <Orb adapter={adapter} theme="circle" aria-label="Start voice assistant" />
 }`
 
-const LIVEKIT_CODE = `import { Orb } from "orb-ui"
-import { createLiveKitAdapter } from "orb-ui/adapters/livekit"
+const LIVEKIT_CODE = `import { Orb } from "@lofcz/orb-ui"
+import { createLiveKitAdapter } from "@lofcz/orb-ui/adapters/livekit"
 
 const adapter = createLiveKitAdapter({
   tokenEndpoint: "/api/livekit-token",
@@ -91,8 +91,8 @@ function App() {
 
 const PIPECAT_CODE = `import { PipecatClient } from "@pipecat-ai/client-js"
 import { SmallWebRTCTransport } from "@pipecat-ai/small-webrtc-transport"
-import { Orb } from "orb-ui"
-import { createPipecatAdapter } from "orb-ui/adapters"
+import { Orb } from "@lofcz/orb-ui"
+import { createPipecatAdapter } from "@lofcz/orb-ui/adapters"
 
 const client = new PipecatClient({
   transport: new SmallWebRTCTransport(),
@@ -106,8 +106,8 @@ export function VoiceOrb() {
   return <Orb adapter={adapter} theme="circle" aria-label="Start Pipecat assistant" />
 }`
 
-const OPENAI_CODE = `import { Orb } from "orb-ui"
-import { createOpenAIRealtimeAdapter } from "orb-ui/adapters"
+const OPENAI_CODE = `import { Orb } from "@lofcz/orb-ui"
+import { createOpenAIRealtimeAdapter } from "@lofcz/orb-ui/adapters"
 
 const adapter = createOpenAIRealtimeAdapter({
   getClientSecret: async () => {
@@ -121,8 +121,8 @@ export function VoiceOrb() {
 }`
 
 const GEMINI_CODE = `import { GoogleGenAI } from "@google/genai"
-import { Orb } from "orb-ui"
-import { createGeminiLiveAdapter } from "orb-ui/adapters"
+import { Orb } from "@lofcz/orb-ui"
+import { createGeminiLiveAdapter } from "@lofcz/orb-ui/adapters"
 
 const adapter = createGeminiLiveAdapter({
   connect: async (callbacks) => {

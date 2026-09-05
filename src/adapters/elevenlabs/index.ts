@@ -102,8 +102,8 @@ export interface ElevenLabsOrbAdapter extends OrbAdapter {
  *
  * @example
  * import { Conversation } from '@elevenlabs/client'
- * import { Orb } from 'orb-ui'
- * import { createElevenLabsAdapter } from 'orb-ui/adapters'
+ * import { Orb } from '@lofcz/orb-ui'
+ * import { createElevenLabsAdapter } from '@lofcz/orb-ui/adapters'
  *
  * const adapter = createElevenLabsAdapter(Conversation, {
  *   agentId: 'your-agent-id',

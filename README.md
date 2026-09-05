@@ -11,13 +11,13 @@ Expressive, accessible React components for realtime voice agents. Connect Vapi,
 </p>
 
 <p align="center">
-  <a href="https://orb-ui.com">Live demo</a> · <a href="https://orb-ui.com/docs">Documentation</a> · <a href="https://orb-ui.com/playground">Playground</a> · <a href="https://www.npmjs.com/package/orb-ui">npm</a> · <a href="https://github.com/alexanderqchen/orb-ui">Star on GitHub</a>
+  <a href="https://orb-ui.com">Live demo</a> · <a href="https://orb-ui.com/docs">Documentation</a> · <a href="https://orb-ui.com/playground">Playground</a> · <a href="https://www.npmjs.com/package/@lofcz/orb-ui">npm</a> · <a href="https://github.com/lofcz/orb-ui">Star on GitHub</a>
 </p>
 
 ```jsx
 import Vapi from '@vapi-ai/web'
-import { Orb } from 'orb-ui'
-import { createVapiAdapter } from 'orb-ui/adapters'
+import { Orb } from '@lofcz/orb-ui'
+import { createVapiAdapter } from '@lofcz/orb-ui/adapters'
 
 const vapi = new Vapi('your-public-key')
 const adapter = createVapiAdapter(vapi, { assistantId: 'your-assistant-id' })
@@ -32,29 +32,29 @@ export function VoiceOrb() {
 Install the component package:
 
 ```bash
-npm install orb-ui
+bun add @lofcz/orb-ui
 ```
 
 Provider adapters are lightweight wrappers around provider SDKs. Install the SDK for the provider you use:
 
 ```bash
 # Vapi
-npm install orb-ui @vapi-ai/web
+bun add @lofcz/orb-ui @vapi-ai/web
 
 # ElevenLabs Conversational AI
-npm install orb-ui @elevenlabs/client
+bun add @lofcz/orb-ui @elevenlabs/client
 
 # LiveKit Agents
-npm install orb-ui livekit-client
+bun add @lofcz/orb-ui livekit-client
 
 # Pipecat (choose the transport used by your agent)
-npm install orb-ui @pipecat-ai/client-js @pipecat-ai/small-webrtc-transport
+bun add @lofcz/orb-ui @pipecat-ai/client-js @pipecat-ai/small-webrtc-transport
 
 # OpenAI Realtime uses browser WebRTC and has no additional client SDK
-npm install orb-ui
+bun add @lofcz/orb-ui
 
 # Gemini Live
-npm install orb-ui @google/genai
+bun add @lofcz/orb-ui @google/genai
 ```
 
 > **Note:** Orb uses React hooks internally — in Next.js App Router, use it in a `'use client'` component.
@@ -94,8 +94,8 @@ Use orb-ui as a React voice AI component when you need a first-party provider vo
 
 ```jsx
 import Vapi from '@vapi-ai/web'
-import { Orb } from 'orb-ui'
-import { createVapiAdapter } from 'orb-ui/adapters'
+import { Orb } from '@lofcz/orb-ui'
+import { createVapiAdapter } from '@lofcz/orb-ui/adapters'
 
 const vapi = new Vapi('your-public-key')
 const adapter = createVapiAdapter(vapi, { assistantId: 'your-assistant-id' })
@@ -109,8 +109,8 @@ function App() {
 
 ```jsx
 import { Conversation } from '@elevenlabs/client'
-import { Orb } from 'orb-ui'
-import { createElevenLabsAdapter } from 'orb-ui/adapters'
+import { Orb } from '@lofcz/orb-ui'
+import { createElevenLabsAdapter } from '@lofcz/orb-ui/adapters'
 
 const adapter = createElevenLabsAdapter(Conversation, { agentId: 'your-agent-id' })
 
@@ -122,8 +122,8 @@ function App() {
 ### With LiveKit
 
 ```jsx
-import { Orb } from 'orb-ui'
-import { createLiveKitAdapter } from 'orb-ui/adapters/livekit'
+import { Orb } from '@lofcz/orb-ui'
+import { createLiveKitAdapter } from '@lofcz/orb-ui/adapters/livekit'
 
 const adapter = createLiveKitAdapter({
   tokenEndpoint: '/api/livekit-token',
@@ -137,15 +137,15 @@ function App() {
 
 The LiveKit entrypoint creates the room and token source, assigns a fresh room name, and meters both
 sides of the conversation with speech-oriented analyser and smoothing defaults. Existing-room and
-custom-runtime modes remain available from the advanced `orb-ui/adapters` entrypoint.
+custom-runtime modes remain available from the advanced `@lofcz/orb-ui/adapters` entrypoint.
 
 ### With Pipecat
 
 ```jsx
 import { PipecatClient } from '@pipecat-ai/client-js'
 import { SmallWebRTCTransport } from '@pipecat-ai/small-webrtc-transport'
-import { Orb } from 'orb-ui'
-import { createPipecatAdapter } from 'orb-ui/adapters'
+import { Orb } from '@lofcz/orb-ui'
+import { createPipecatAdapter } from '@lofcz/orb-ui/adapters'
 
 const client = new PipecatClient({ transport: new SmallWebRTCTransport(), enableMic: true })
 const adapter = createPipecatAdapter(client, {
@@ -164,8 +164,8 @@ sparse audio-level events. See the [Pipecat guide](https://orb-ui.com/docs/adapt
 ### With OpenAI Realtime
 
 ```jsx
-import { Orb } from 'orb-ui'
-import { createOpenAIRealtimeAdapter } from 'orb-ui/adapters'
+import { Orb } from '@lofcz/orb-ui'
+import { createOpenAIRealtimeAdapter } from '@lofcz/orb-ui/adapters'
 
 const adapter = createOpenAIRealtimeAdapter({
   getClientSecret: async () => {
@@ -182,8 +182,8 @@ Create client secrets with a standard OpenAI API key on your server. See the
 
 ```jsx
 import { GoogleGenAI } from '@google/genai'
-import { Orb } from 'orb-ui'
-import { createGeminiLiveAdapter } from 'orb-ui/adapters'
+import { Orb } from '@lofcz/orb-ui'
+import { createGeminiLiveAdapter } from '@lofcz/orb-ui/adapters'
 
 const adapter = createGeminiLiveAdapter({
   connect: async (callbacks) => {
@@ -210,7 +210,7 @@ adapter guides.
 ### Controlled mode (custom integration)
 
 ```jsx
-import { Orb } from 'orb-ui'
+import { Orb } from '@lofcz/orb-ui'
 import { useState } from 'react'
 
 function App() {
@@ -224,7 +224,7 @@ function App() {
 Use `signal` when your integration has separate input and output levels:
 
 ```jsx
-import { Orb } from 'orb-ui'
+import { Orb } from '@lofcz/orb-ui'
 
 function App() {
   return <Orb signal={{ state: 'speaking', outputVolume: 0.7 }} theme="circle" />
@@ -293,38 +293,37 @@ the orb with the typed style variable:
 
 | Provider                                                                  | Adapter                                                               |
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| [Vapi](https://vapi.ai)                                                   | `createVapiAdapter` from `orb-ui/adapters`                            |
-| [ElevenLabs](https://elevenlabs.io/conversational-ai)                     | `createElevenLabsAdapter` from `orb-ui/adapters`                      |
-| [LiveKit](https://livekit.io)                                             | `createLiveKitAdapter` from `orb-ui/adapters`                         |
-| [Pipecat](https://pipecat.ai)                                             | `createPipecatAdapter` from `orb-ui/adapters`                         |
-| [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime) | `createOpenAIRealtimeAdapter` from `orb-ui/adapters`                  |
-| [Gemini Live](https://ai.google.dev/gemini-api/docs/live-api)             | `createGeminiLiveAdapter` from `orb-ui/adapters`                      |
+| [Vapi](https://vapi.ai)                                                   | `createVapiAdapter` from `@lofcz/orb-ui/adapters`                            |
+| [ElevenLabs](https://elevenlabs.io/conversational-ai)                     | `createElevenLabsAdapter` from `@lofcz/orb-ui/adapters`                      |
+| [LiveKit](https://livekit.io)                                             | `createLiveKitAdapter` from `@lofcz/orb-ui/adapters`                         |
+| [Pipecat](https://pipecat.ai)                                             | `createPipecatAdapter` from `@lofcz/orb-ui/adapters`                         |
+| [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime) | `createOpenAIRealtimeAdapter` from `@lofcz/orb-ui/adapters`                  |
+| [Gemini Live](https://ai.google.dev/gemini-api/docs/live-api)             | `createGeminiLiveAdapter` from `@lofcz/orb-ui/adapters`                      |
 | Custom                                                                    | Use controlled mode — pass `signal`, or `state` and `volume` directly |
 
 ## Development
 
 ```bash
-git clone https://github.com/alexanderqchen/orb-ui.git
+git clone https://github.com/lofcz/orb-ui.git
 cd orb-ui
-pnpm install
+bun install
 
 # Build the library
-pnpm build
+bun run build
 
 # Run demo locally
-pnpm dev:demo
+bun run dev:demo
 ```
 
 Useful maintenance commands:
 
 ```bash
-pnpm check        # format check, lint, typechecks, tests, library build, demo build
-pnpm format       # format repo files
-pnpm changeset    # add release notes for a user-facing package change
+bun run check     # format check, lint, typechecks, tests, library build, demo build
+bun run format    # format repo files
 ```
 
-Releases are managed with Changesets. Merging a Changesets version PR publishes
-`orb-ui` to npm from GitHub Actions using npm trusted publishing.
+Releases are published as `@lofcz/orb-ui` from GitHub Actions (`release.yml`)
+using npm trusted publishing (OIDC). Run **Release and Publish to npm** on `main`.
 
 ## License
 

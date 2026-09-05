@@ -1,7 +1,7 @@
 {
   "framework": "vite",
-  "installCommand": "cd .. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd .. && pnpm build && pnpm build:demo",
+  "installCommand": "cd .. && bun install --frozen-lockfile",
+  "buildCommand": "cd .. && bun run build && bun run build:demo",
   "outputDirectory": "dist",
   "redirects": [
     {

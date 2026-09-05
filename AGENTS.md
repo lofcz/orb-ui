@@ -31,5 +31,5 @@ This repo is intentionally AI-native. Follow `CONTRIBUTING.md` first, then these
 ## Verification
 
 - Run focused tests/typechecks for the touched surface when possible.
-- Before opening a release PR, run `pnpm check`.
+- Before opening a release PR, run `bun run check`.
 - If verification cannot be run, explain why in the PR notes.

@@ -1,13 +1,13 @@
-import { Orb } from 'orb-ui'
+import { Orb } from '@lofcz/orb-ui'
 import {
   createElevenLabsAdapter,
   createGeminiLiveAdapter,
   createLiveKitAdapter as createAdvancedLiveKitAdapter,
   createOpenAIRealtimeAdapter,
   createPipecatAdapter,
-} from 'orb-ui/adapters'
-import { createLiveKitAdapter } from 'orb-ui/adapters/livekit'
-import type { LiveKitBrowserAdapterConfig } from 'orb-ui/adapters/livekit'
+} from '@lofcz/orb-ui/adapters'
+import { createLiveKitAdapter } from '@lofcz/orb-ui/adapters/livekit'
+import type { LiveKitBrowserAdapterConfig } from '@lofcz/orb-ui/adapters/livekit'
 import type {
   ElevenLabsConversationClass,
   GeminiLiveSession,
@@ -15,7 +15,7 @@ import type {
   OrbAdapter,
   OrbSignal,
   PipecatClientLike,
-} from 'orb-ui/adapters'
+} from '@lofcz/orb-ui/adapters'
 
 const Conversation: ElevenLabsConversationClass = {
   startSession: async () => ({

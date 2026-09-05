@@ -52,15 +52,15 @@ That's it.
 ## Getting Started
 
 ```bash
-git clone https://github.com/alexanderqchen/orb-ui.git
+git clone https://github.com/lofcz/orb-ui.git
 cd orb-ui
-pnpm install
+bun install
 
 # Build the library
-pnpm build
+bun run build
 
 # Run demo locally
-pnpm dev:demo
+bun run dev:demo
 ```
 
 ### Provider QA playground
@@ -68,8 +68,8 @@ pnpm dev:demo
 For real adapter testing before merge or release:
 
 ```bash
-pnpm build
-pnpm dev:demo
+bun run build
+bun run dev:demo
 ```
 
 Then open `http://localhost:5173/playground`. The same `/playground` path is available on preview
@@ -93,29 +93,25 @@ demo server. Use development agents and never commit `.env.local`.
 Before opening a PR, run:
 
 ```bash
-pnpm check
+bun run check
 ```
 
 The verification layers have separate jobs:
 
-- `pnpm test` covers component, signal, and provider-adapter behavior with fast unit tests.
+- `bun run test` covers component, signal, and provider-adapter behavior with fast unit tests.
 - Typechecks validate source examples, provider SDK compatibility, and the declarations emitted by
   the built package.
 - The demo typecheck and build validate the deployed site and playground as a real consumer.
-- `pnpm test:e2e` builds the published package entry points, loads them in Google Chrome, and
+- `bun run test:e2e` builds the published package entry points, loads them in Google Chrome, and
   exercises controlled signals plus adapter start/stop behavior.
 
 Run the browser check by itself with:
 
 ```bash
-pnpm test:e2e
+bun run test:e2e
 ```
 
-If your change affects users, add a changeset:
-
-```bash
-pnpm changeset
-```
+Releases are cut from GitHub Actions: **Release and Publish to npm** on `main`.
 
 ---
 
@@ -123,7 +119,7 @@ pnpm changeset
 
 - Treat the public API (`Orb` props, `OrbAdapter` interface, `OrbState` union) carefully. Breaking changes are allowed only when they are intentional, documented, and released with a migration note.
 - New themes go in `src/themes/`, new adapters in `src/adapters/`
-- Run `pnpm check` before opening a PR
+- Run `bun run check` before opening a PR
 - Keep bundle size in mind — no heavy dependencies without discussion
 
 ## Adapter release and distribution checklist

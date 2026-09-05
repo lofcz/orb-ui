@@ -1,8 +1,8 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { LiveCallbacks, LiveConnectConfig } from '@google/genai'
-import { Orb } from 'orb-ui'
-import type { OrbAdapter, OrbSignal, OrbState, OrbTheme } from 'orb-ui'
+import { Orb } from '@lofcz/orb-ui'
+import type { OrbAdapter, OrbSignal, OrbState, OrbTheme } from '@lofcz/orb-ui'
 import {
   createElevenLabsAdapter,
   createGeminiLiveAdapter,
@@ -10,12 +10,12 @@ import {
   createOpenAIRealtimeAdapter,
   createPipecatAdapter,
   createVapiAdapter,
-} from 'orb-ui/adapters'
+} from '@lofcz/orb-ui/adapters'
 import type {
   GeminiLiveSession,
   OutputVolumeCalibration,
   OutputVolumeSample,
-} from 'orb-ui/adapters'
+} from '@lofcz/orb-ui/adapters'
 import './provider-playground.css'
 
 type ProviderId = 'manual' | 'vapi' | 'elevenlabs' | 'livekit' | 'pipecat' | 'openai' | 'gemini'

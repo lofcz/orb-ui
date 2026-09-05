@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Orb } from 'orb-ui'
-import type { OrbAdapter, OrbSignal } from 'orb-ui'
-import { createElevenLabsAdapter, createLiveKitAdapter, createVapiAdapter } from 'orb-ui/adapters'
-import { createLiveKitAdapter as createManagedLiveKitAdapter } from 'orb-ui/adapters/livekit'
+import { Orb } from '@lofcz/orb-ui'
+import type { OrbAdapter, OrbSignal } from '@lofcz/orb-ui'
+import { createElevenLabsAdapter, createLiveKitAdapter, createVapiAdapter } from '@lofcz/orb-ui/adapters'
+import { createLiveKitAdapter as createManagedLiveKitAdapter } from '@lofcz/orb-ui/adapters/livekit'
 
 const IDLE_SIGNAL: OrbSignal = {
   state: 'idle',

@@ -17,7 +17,7 @@
     "@pipecat-ai/small-webrtc-transport": "1.10.5",
     "@vapi-ai/web": "2.5.2",
     "livekit-client": "2.20.0",
-    "orb-ui": "workspace:*"
+    "@lofcz/orb-ui": "file:.."
   },
   "devDependencies": {
     "@types/react": "^18.3.29",

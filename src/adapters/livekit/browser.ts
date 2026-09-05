@@ -60,7 +60,7 @@ function createRoomName() {
  * Creates a managed LiveKit Agents adapter using the official browser SDK.
  *
  * This entrypoint owns the LiveKit Room, token source, microphone, playback,
- * and audio analysers. Import the advanced factory from `orb-ui/adapters`
+ * and audio analysers. Import the advanced factory from `@lofcz/orb-ui/adapters`
  * only when your application already owns those pieces.
  */
 export function createLiveKitAdapter(config: LiveKitBrowserAdapterConfig): LiveKitOrbAdapter {
