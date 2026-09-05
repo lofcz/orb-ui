@@ -116,6 +116,15 @@ export function PackageConsumerSmoke() {
         theme="radial"
       />
       <Orb adapter={customAdapter} interactive={false} theme="cloud" />
+      <Orb
+        signal={signal}
+        interactive={false}
+        renderTheme={({ rootProps, state, activity }) => (
+          <div {...rootProps}>
+            {state}:{activity}
+          </div>
+        )}
+      />
     </>
   )
 }

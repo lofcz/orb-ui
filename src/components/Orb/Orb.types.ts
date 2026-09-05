@@ -1,4 +1,4 @@
-import type { AriaAttributes, CSSProperties } from 'react'
+import type { AriaAttributes, CSSProperties, ReactNode } from 'react'
 
 export type OrbStyle = CSSProperties & {
   /** Background color revealed around the radial theme's floating phone control. */
@@ -105,4 +105,43 @@ export interface OrbProps extends OrbHtmlAttributes {
    * Overrides adapter.stop() when provided.
    */
   onStop?: () => void
+
+  /**
+   * Replace built-in themes with custom artwork. Orb still owns state,
+   * volume, and start/stop. `theme` is ignored when this is set.
+   */
+  renderTheme?: OrbThemeRenderer
 }
+
+export interface OrbThemeRendererRootProps extends OrbHtmlAttributes {
+  ref?: (element: HTMLElement | null) => void
+  className?: string
+  style?: OrbStyle
+}
+
+export interface OrbThemeRendererControlProps extends OrbHtmlAttributes {
+  type: 'button'
+  className?: string
+  style?: CSSProperties
+  disabled: boolean
+  onClick?: () => void
+}
+
+export interface OrbThemeRendererProps {
+  state: OrbState
+  signal: OrbSignal
+  inputVolume: number
+  outputVolume: number
+  activity: number
+  size: number
+  isActive: boolean
+  interactive: boolean
+  disabled: boolean
+  start: () => void | Promise<void>
+  stop: () => void | Promise<void>
+  toggle: () => void | Promise<void>
+  rootProps: OrbThemeRendererRootProps
+  controlProps: OrbThemeRendererControlProps
+}
+
+export type OrbThemeRenderer = (props: OrbThemeRendererProps) => ReactNode

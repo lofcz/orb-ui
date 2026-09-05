@@ -267,6 +267,29 @@ the orb with the typed style variable:
 <Orb adapter={adapter} theme="radial" style={{ '--orb-ui-radial-control-surround': '#101010' }} />
 ```
 
+### Custom renderer
+
+For an app-owned voice stack (Gemini Live, custom Web Audio), keep session control outside the orb and draw your own artwork. Orb still normalizes `state`, input/output volume, and activity:
+
+```tsx
+import { Orb } from '@lofcz/orb-ui'
+
+<Orb
+  signal={{ state: 'listening', inputVolume: 0.4, outputVolume: 0 }}
+  interactive={false}
+  renderTheme={({ rootProps, state, activity, inputVolume, outputVolume }) => (
+    <div {...rootProps} data-voice-orb={state}>
+      {/* canvas / svg / css — activity is 0–1 for the current state */}
+      <span>{activity.toFixed(2)}</span>
+      <span>{inputVolume.toFixed(2)}</span>
+      <span>{outputVolume.toFixed(2)}</span>
+    </div>
+  )}
+/>
+```
+
+`theme` is ignored when `renderTheme` is set.
+
 ## Props
 
 | Prop          | Type                                                   | Default   | Description                                             |
@@ -284,6 +307,7 @@ the orb with the typed style variable:
 | `aria-label`  | `string`                                               | generated | Accessible label for clickable visual themes            |
 | `onStart`     | `() => void`                                           | —         | Custom start handler (overrides adapter.start())        |
 | `onStop`      | `() => void`                                           | —         | Custom stop handler (overrides adapter.stop())          |
+| `renderTheme` | `OrbThemeRenderer`                                     | —         | Custom artwork; Orb still owns state and volume         |
 
 ## States
 
@@ -299,7 +323,7 @@ the orb with the typed style variable:
 | [Pipecat](https://pipecat.ai)                                             | `createPipecatAdapter` from `@lofcz/orb-ui/adapters`                         |
 | [OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime) | `createOpenAIRealtimeAdapter` from `@lofcz/orb-ui/adapters`                  |
 | [Gemini Live](https://ai.google.dev/gemini-api/docs/live-api)             | `createGeminiLiveAdapter` from `@lofcz/orb-ui/adapters`                      |
-| Custom                                                                    | Use controlled mode — pass `signal`, or `state` and `volume` directly |
+| Custom / Gemini Live (app-owned session)                                  | Controlled mode — pass `signal` or `state` + `volume`, plus `renderTheme` |
 
 ## Development
 

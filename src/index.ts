@@ -7,6 +7,10 @@ export type {
   OrbState,
   OrbStyle,
   OrbTheme,
+  OrbThemeRenderer,
+  OrbThemeRendererControlProps,
+  OrbThemeRendererProps,
+  OrbThemeRendererRootProps,
 } from './components/Orb'
 
 // Backwards-compat aliases (deprecated — use Orb / OrbProps instead)

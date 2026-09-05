@@ -145,6 +145,29 @@ describe('Orb accessibility', () => {
     expect(html).toContain('0.40')
   })
 
+  it('renders a custom theme and ignores the built-in theme name', () => {
+    const html = renderToStaticMarkup(
+      <Orb
+        state="speaking"
+        volume={0.8}
+        signal={{ state: 'speaking', inputVolume: 0.1, outputVolume: 0.8 }}
+        theme="debug"
+        renderTheme={({ rootProps, state, activity, inputVolume, outputVolume }) => (
+          <div {...rootProps} data-custom-orb="">
+            {state}:{activity.toFixed(1)}:{inputVolume.toFixed(1)}:{outputVolume.toFixed(1)}
+          </div>
+        )}
+      />,
+    )
+
+    expect(html).toContain('data-custom-orb=""')
+    expect(html).toContain('data-orb-ui-theme="custom"')
+    expect(html).toContain('data-orb-ui-state="speaking"')
+    expect(html).toContain('speaking:0.8:0.1:0.8')
+    expect(html).not.toContain('Start')
+    expect(html).not.toContain('Stop')
+  })
+
   it('renders thinking state in every theme', () => {
     expect(renderToStaticMarkup(<Orb state="thinking" theme="debug" />)).toContain('thinking')
     expect(renderToStaticMarkup(<Orb state="thinking" theme="circle" />)).toContain('<div')

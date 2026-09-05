@@ -7,4 +7,8 @@ export type {
   OrbState,
   OrbStyle,
   OrbTheme,
+  OrbThemeRenderer,
+  OrbThemeRendererControlProps,
+  OrbThemeRendererProps,
+  OrbThemeRendererRootProps,
 } from './Orb.types'

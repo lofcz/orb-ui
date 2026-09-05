@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { OrbProps, OrbSignal } from './Orb.types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { OrbProps, OrbSignal, OrbThemeRendererControlProps } from './Orb.types'
 import { deriveOrbState, deriveOrbVolume } from './signals'
 import { DebugTheme } from '../../themes/debug'
 import { CircleTheme } from '../../themes/circle'
@@ -20,6 +20,7 @@ export function Orb({
   interactive: interactiveProp = true,
   onStart,
   onStop,
+  renderTheme,
   ...htmlProps
 }: OrbProps) {
   const [adapterSignal, setAdapterSignal] = useState<OrbSignal>({ state: 'idle' })
@@ -34,37 +35,81 @@ export function Orb({
 
   const activeSignal = signalProp ?? adapterSignal
   const state = deriveOrbState(stateProp, signalProp, adapterSignal)
-  const volume = deriveOrbVolume(volumeProp, state, activeSignal)
+  const activity = deriveOrbVolume(volumeProp, state, activeSignal)
+  const inputVolume = activeSignal.inputVolume ?? 0
+  const outputVolume = activeSignal.outputVolume ?? 0
+  const rendererSignal = useMemo<OrbSignal>(
+    () => ({ ...activeSignal, state, inputVolume, outputVolume }),
+    [activeSignal, inputVolume, outputVolume, state],
+  )
 
   const isActive = state !== 'idle' && state !== 'error'
 
-  const handleClick = useCallback(() => {
+  const start = useCallback(() => {
     if (disabled) return
+    if (onStart) return onStart()
+    return adapter?.start?.()
+  }, [adapter, disabled, onStart])
 
-    if (isActive) {
-      if (onStop) onStop()
-      else adapter?.stop?.()
-    } else {
-      if (onStart) onStart()
-      else adapter?.start?.()
-    }
-  }, [adapter, disabled, isActive, onStart, onStop])
+  const stop = useCallback(() => {
+    if (disabled) return
+    if (onStop) return onStop()
+    return adapter?.stop?.()
+  }, [adapter, disabled, onStop])
 
-  // Only render a clickable control when the current state can be handled.
-  // Disabled controls stay semantic buttons but do not fire handlers.
+  const toggle = useCallback(() => (isActive ? stop() : start()), [isActive, start, stop])
+
   const canInteract = isActive ? !!(adapter?.stop || onStop) : !!(adapter?.start || onStart)
   const interactive = interactiveProp && canInteract
-  const clickHandler = interactive && !disabled ? handleClick : undefined
+  const clickHandler = interactive && !disabled ? toggle : undefined
+  const ariaLabel =
+    htmlProps['aria-label'] ??
+    (interactive ? `${isActive ? 'Stop' : 'Start'} voice session` : undefined)
   const controlProps = {
     ...htmlProps,
-    'aria-label':
-      htmlProps['aria-label'] ??
-      (interactive ? `${isActive ? 'Stop' : 'Start'} voice session` : undefined),
+    'aria-label': ariaLabel,
+  }
+
+  if (renderTheme) {
+    const customControlProps: OrbThemeRendererControlProps = {
+      ...htmlProps,
+      type: 'button',
+      disabled: disabled || !interactive,
+      onClick: clickHandler,
+      'data-orb-ui-state': state,
+      'aria-label': ariaLabel,
+    }
+
+    return renderTheme({
+      state,
+      signal: rendererSignal,
+      inputVolume,
+      outputVolume,
+      activity,
+      size,
+      isActive,
+      interactive,
+      disabled,
+      start,
+      stop,
+      toggle,
+      rootProps: {
+        className,
+        style: {
+          width: size,
+          height: size,
+          ...style,
+        },
+        'data-orb-ui-theme': 'custom',
+        'data-orb-ui-state': state,
+      },
+      controlProps: customControlProps,
+    })
   }
 
   const sharedThemeProps = {
     state,
-    volume,
+    volume: activity,
     size,
     className,
     style,
@@ -92,10 +137,8 @@ export function Orb({
         <DebugTheme
           {...sharedThemeProps}
           disabled={disabled || !interactiveProp}
-          onStart={
-            disabled || !interactiveProp ? undefined : (onStart ?? (() => adapter?.start?.()))
-          }
-          onStop={disabled || !interactiveProp ? undefined : (onStop ?? (() => adapter?.stop?.()))}
+          onStart={disabled || !interactiveProp ? undefined : start}
+          onStop={disabled || !interactiveProp ? undefined : stop}
         />
       )
   }
