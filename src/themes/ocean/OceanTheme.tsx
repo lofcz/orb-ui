@@ -351,6 +351,22 @@ interface StateTargets {
   glow: number
   tiltAmplitude: number
   levelOffset: number
+  /** Brightness of the corona that surrounds the orb, 0–1. */
+  corona: number
+  /** How far the corona reaches past the rim, in radii. */
+  reach: number
+  /** Seconds between emitted rings; 0 emits none. */
+  ringEvery: number
+  /** Strength of an emitted ring, 0–1. */
+  ringStrength: number
+  /** Rings roll out from the rim while talking and gather in while listening. */
+  ringInward: boolean
+  /** Visibility of the orbiting sparks, 0–1. */
+  orbit: number
+  /** Visibility of the sweeping arc, 0–1. */
+  sweep: number
+  /** Slow whole-body pulse that says "alive" when the water alone is too quiet. */
+  pulse: number
 }
 
 /**
@@ -370,44 +386,315 @@ function resolveTargets(
       return {
         swell: 0.03,
         speed: 0.32,
-        glow: 0.28 + 0.16 * Math.sin(clock * 2.6),
+        glow: 0.3 + 0.2 * Math.sin(clock * 2.6),
         tiltAmplitude: 0.02,
         levelOffset: 0,
+        corona: 0.4 + 0.2 * Math.sin(clock * 2.6),
+        reach: 0.38,
+        ringEvery: 0,
+        ringStrength: 0,
+        ringInward: false,
+        orbit: 0,
+        sweep: 1,
+        pulse: 0.5,
       }
     case 'listening':
       return {
-        swell: 0.045 + listen * 0.02,
-        speed: 0.5 + listen * 0.25,
-        glow: 0.36 + listen * 0.3,
+        swell: 0.045 + listen * 0.05,
+        speed: 0.5 + listen * 0.5,
+        glow: 0.42 + listen * 0.5,
         tiltAmplitude: 0.03,
-        levelOffset: listen * 0.03,
+        levelOffset: listen * 0.05,
+        corona: 0.5 + listen * 0.5,
+        reach: 0.4 + listen * 0.45,
+        ringEvery: 0.75 - listen * 0.45,
+        ringStrength: 0.45 + listen * 0.55,
+        ringInward: true,
+        orbit: 0,
+        sweep: 0,
+        pulse: 0.3,
       }
     case 'thinking':
       return {
         swell: 0.05,
-        speed: 0.58,
-        glow: 0.5 + 0.2 * Math.sin(clock * 2.4),
-        tiltAmplitude: 0.055,
+        speed: 0.7,
+        glow: 0.6 + 0.25 * Math.sin(clock * 3.1),
+        tiltAmplitude: 0.06,
         levelOffset: 0.01,
+        corona: 0.65 + 0.25 * Math.sin(clock * 3.1),
+        reach: 0.55,
+        ringEvery: 0,
+        ringStrength: 0,
+        ringInward: true,
+        orbit: 1,
+        sweep: 0,
+        pulse: 1,
       }
     case 'speaking':
       return {
-        swell: 0.06 + speak * 0.09,
-        speed: 0.82 + speak * 0.7,
-        glow: 0.52 + speak * 0.42,
+        swell: 0.065 + speak * 0.12,
+        speed: 0.9 + speak * 1.1,
+        glow: 0.6 + speak * 0.4,
         tiltAmplitude: 0.035,
-        levelOffset: 0.02 + speak * 0.03,
+        levelOffset: 0.02 + speak * 0.05,
+        corona: 0.75 + speak * 0.25,
+        reach: 0.6 + speak * 0.6,
+        ringEvery: 0.36 - speak * 0.18,
+        ringStrength: 0.55 + speak * 0.45,
+        ringInward: false,
+        orbit: 0,
+        sweep: 0,
+        pulse: 0.2,
       }
     case 'error':
-      return { swell: 0.02, speed: 0.2, glow: 0.06, tiltAmplitude: 0.01, levelOffset: -0.04 }
+      return {
+        swell: 0.02,
+        speed: 0.2,
+        glow: 0.06,
+        tiltAmplitude: 0.01,
+        levelOffset: -0.04,
+        corona: 0.08,
+        reach: 0.15,
+        ringEvery: 0,
+        ringStrength: 0,
+        ringInward: false,
+        orbit: 0,
+        sweep: 0,
+        pulse: 0,
+      }
     case 'idle':
     default:
-      return { swell: 0.036, speed: 0.36, glow: 0.26, tiltAmplitude: 0.028, levelOffset: 0 }
+      return {
+        swell: 0.036,
+        speed: 0.36,
+        glow: 0.28,
+        tiltAmplitude: 0.028,
+        levelOffset: 0,
+        corona: 0.3,
+        reach: 0.24,
+        ringEvery: 5,
+        ringStrength: 0.25,
+        ringInward: false,
+        orbit: 0,
+        sweep: 0,
+        pulse: 0.35,
+      }
   }
 }
 
 const BASE_LEVEL = 0.1
 const BREATH_PERIOD_SECONDS = 7.5
+const PULSE_PERIOD_SECONDS = 1.6
+/** The aura canvas is this many artwork diameters wide, so effects reach well past the rim. */
+const AURA_SCALE = 2.6
+const RING_TRAVEL_RADII = 1.25
+const RING_LIFE_SECONDS = 1.9
+const ORBITER_COUNT = 6
+
+interface AuraRing {
+  born: number
+  strength: number
+  inward: boolean
+}
+
+interface Orbiter {
+  angle: number
+  speed: number
+  radius: number
+  size: number
+  wobble: number
+}
+
+interface AuraMotion {
+  time: number
+  corona: number
+  reach: number
+  glow: number
+  speak: number
+  listen: number
+  orbit: number
+  sweep: number
+  pulse: number
+  breath: number
+  rings: AuraRing[]
+  orbiters: Orbiter[]
+}
+
+interface AuraRenderer {
+  draw(motion: AuraMotion): void
+}
+
+function createOrbiters(): Orbiter[] {
+  return Array.from({ length: ORBITER_COUNT }, (_, index) => ({
+    angle: (index / ORBITER_COUNT) * Math.PI * 2,
+    speed: (0.9 + (index % 3) * 0.35) * (index % 2 === 0 ? 1 : -1),
+    radius: 1.14 + (index % 3) * 0.11,
+    size: 0.03 + (index % 2) * 0.014,
+    wobble: 0.7 + index * 0.37,
+  }))
+}
+
+/**
+ * Everything that happens outside the glass: the corona, the rings the voice
+ * sends out or the ear draws in, the sparks that circle while the interviewer
+ * thinks, and the arc that sweeps while it connects. Drawn on a plain 2D
+ * canvas larger than the orb, so none of it is clipped at the rim.
+ */
+function createAuraRenderer(
+  canvas: HTMLCanvasElement,
+  diameter: number,
+  palette: ResolvedOceanPalette,
+  scheme: OrbScheme,
+): AuraRenderer | undefined {
+  const context = canvas.getContext('2d')
+  if (!context) return undefined
+
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+  const side = diameter * AURA_SCALE
+  canvas.width = Math.max(1, Math.round(side * pixelRatio))
+  canvas.height = canvas.width
+  context.scale(pixelRatio, pixelRatio)
+
+  const centre = side / 2
+  const radius = diameter / 2
+  const accent: Rgb = scheme === 'dark' ? palette.glow : palette.shallow
+  const light: Rgb = scheme === 'dark' ? palette.foam : palette.deep
+  const deep: Rgb = scheme === 'dark' ? palette.shallow : palette.deep
+  const lineAlpha = scheme === 'dark' ? 1 : 0.75
+
+  const circle = (x: number, y: number, r: number) => {
+    context.beginPath()
+    context.arc(x, y, r, 0, Math.PI * 2)
+  }
+
+  return {
+    draw(motion) {
+      context.clearRect(0, 0, side, side)
+      context.globalCompositeOperation = scheme === 'dark' ? 'lighter' : 'source-over'
+
+      // Corona: the light the orb throws on the room. It reaches further and
+      // burns brighter with the voice, and breathes even when nothing else moves.
+      const reach = radius * (1 + motion.reach + motion.pulse * 0.04 + Math.sin(motion.breath) * 0.02)
+      const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.85 : 0.7))
+      const corona = context.createRadialGradient(centre, centre, radius * 0.9, centre, centre, reach)
+      corona.addColorStop(0, rgbToCss(accent, coronaAlpha))
+      corona.addColorStop(0.3, rgbToCss(accent, coronaAlpha * 0.5))
+      corona.addColorStop(0.65, rgbToCss(accent, coronaAlpha * 0.15))
+      corona.addColorStop(1, rgbToCss(accent, 0))
+      context.fillStyle = corona
+      circle(centre, centre, reach)
+      context.fill()
+
+      // A hotter core to the corona that only the voice brings out.
+      const voice = clamp(motion.speak + motion.listen * 0.6)
+      if (voice > 0.01) {
+        const coreReach = radius * (1.02 + voice * 0.5)
+        const core = context.createRadialGradient(centre, centre, radius * 0.95, centre, centre, coreReach)
+        core.addColorStop(0, rgbToCss(light, 0.55 * voice * lineAlpha))
+        core.addColorStop(1, rgbToCss(light, 0))
+        context.fillStyle = core
+        circle(centre, centre, coreReach)
+        context.fill()
+      }
+
+      // Rim light: a bright band hugging the glass that flares with the voice.
+      const rimAlpha = clamp((0.3 + motion.glow * 0.4 + motion.speak * 0.5 + motion.listen * 0.4) * lineAlpha)
+      const rimReach = radius * (1.08 + motion.speak * 0.1)
+      const rim = context.createRadialGradient(centre, centre, radius * 0.97, centre, centre, rimReach)
+      rim.addColorStop(0, rgbToCss(light, rimAlpha))
+      rim.addColorStop(1, rgbToCss(light, 0))
+      context.fillStyle = rim
+      circle(centre, centre, radius * 1.15)
+      context.fill()
+
+      // Rings: born at the rim and travelling out (speaking), or born far out
+      // and travelling in (listening), fading as they go.
+      for (const ring of motion.rings) {
+        const age = clamp((motion.time - ring.born) / RING_LIFE_SECONDS)
+        const eased = 1 - Math.pow(1 - age, 2.2)
+        const path = ring.inward ? 1 - eased : eased
+        const ringRadius = radius * (1 + RING_TRAVEL_RADII * path)
+        const fade = ring.inward
+          ? Math.pow(1 - path, 0.6) * (1 - Math.pow(age, 4))
+          : Math.pow(1 - age, 1.3)
+        const alpha = clamp(fade * ring.strength)
+        if (alpha < 0.005) continue
+        const width = radius * (0.03 + ring.strength * 0.05) * (1 - path * 0.45)
+        context.lineWidth = width * 3.5
+        context.strokeStyle = rgbToCss(accent, alpha * 0.35)
+        circle(centre, centre, ringRadius)
+        context.stroke()
+        context.lineWidth = width
+        context.strokeStyle = rgbToCss(light, alpha * lineAlpha)
+        circle(centre, centre, ringRadius)
+        context.stroke()
+      }
+
+      // Orbiters: sparks that circle the orb while it thinks, each with a tail.
+      if (motion.orbit > 0.01) {
+        for (const pathRadius of [1.14, 1.25, 1.36]) {
+          context.lineWidth = radius * 0.008
+          context.strokeStyle = rgbToCss(accent, 0.22 * motion.orbit * lineAlpha)
+          circle(centre, centre, radius * pathRadius)
+          context.stroke()
+        }
+        for (const orbiter of motion.orbiters) {
+          const wobble = Math.sin(motion.time * orbiter.wobble) * 0.05
+          const orbitRadius = radius * (orbiter.radius + wobble)
+          const tail = 1.1 + motion.orbit * 1.1
+          const direction = orbiter.speed > 0 ? 1 : -1
+          const steps = 18
+          for (let step = 0; step < steps; step += 1) {
+            const back = (step / steps) * tail
+            const angle = orbiter.angle - direction * back
+            const x = centre + Math.cos(angle) * orbitRadius
+            const y = centre + Math.sin(angle) * orbitRadius
+            const strength = Math.pow(1 - step / steps, 2) * motion.orbit
+            context.fillStyle = rgbToCss(
+              step === 0 ? light : accent,
+              clamp(strength * (step === 0 ? 1 : 0.7) * lineAlpha),
+            )
+            circle(x, y, radius * orbiter.size * (1 - (step / steps) * 0.7))
+            context.fill()
+          }
+          const haloRadius = radius * orbiter.size * 5
+          const x = centre + Math.cos(orbiter.angle) * orbitRadius
+          const y = centre + Math.sin(orbiter.angle) * orbitRadius
+          const sparkHalo = context.createRadialGradient(x, y, 0, x, y, haloRadius)
+          sparkHalo.addColorStop(0, rgbToCss(accent, 0.8 * motion.orbit))
+          sparkHalo.addColorStop(1, rgbToCss(accent, 0))
+          context.fillStyle = sparkHalo
+          circle(x, y, haloRadius)
+          context.fill()
+        }
+      }
+
+      // Sweep: the arc that circles while a connection is being made.
+      if (motion.sweep > 0.01) {
+        const arcs = [
+          { orbitRadius: radius * 1.12, start: motion.time * 2.4, span: Math.PI * 0.6, width: 0.045 },
+          { orbitRadius: radius * 1.26, start: Math.PI - motion.time * 1.5, span: Math.PI * 0.35, width: 0.02 },
+        ]
+        for (const { orbitRadius, start, span, width } of arcs) {
+          const arc = context.createConicGradient(start, centre, centre)
+          arc.addColorStop(0, rgbToCss(light, 0))
+          arc.addColorStop(span / (Math.PI * 2), rgbToCss(light, 0.95 * motion.sweep * lineAlpha))
+          arc.addColorStop(span / (Math.PI * 2) + 0.001, rgbToCss(light, 0))
+          arc.addColorStop(1, rgbToCss(light, 0))
+          context.lineWidth = radius * width
+          context.strokeStyle = arc
+          context.beginPath()
+          context.arc(centre, centre, orbitRadius, start, start + span)
+          context.stroke()
+          context.lineWidth = radius * 0.01
+          context.strokeStyle = rgbToCss(deep, 0.3 * motion.sweep * lineAlpha)
+          circle(centre, centre, orbitRadius)
+          context.stroke()
+        }
+      }
+    },
+  }
+}
 
 export function OceanTheme({
   state,
@@ -423,7 +710,8 @@ export function OceanTheme({
   ...controlProps
 }: OceanThemeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const haloRef = useRef<HTMLSpanElement>(null)
+  const auraRef = useRef<HTMLCanvasElement>(null)
+  const bodyRef = useRef<HTMLSpanElement>(null)
   const stateRef = useRef(state)
   const volumeRef = useRef(volume)
   const reducedMotionRef = useRef(false)
@@ -441,8 +729,9 @@ export function OceanTheme({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    const halo = haloRef.current
-    if (!canvas || !halo) return
+    const auraCanvas = auraRef.current
+    const body = bodyRef.current
+    if (!canvas || !auraCanvas || !body) return
 
     const colors = JSON.parse(paletteKey) as ResolvedOceanPalette
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -456,6 +745,7 @@ export function OceanTheme({
     if (!renderer) {
       canvas.style.background = `linear-gradient(180deg, ${rgbToCss(colors.sky, 1)} 0%, ${rgbToCss(colors.horizon, 1)} 44%, ${rgbToCss(colors.shallow, 1)} 48%, ${rgbToCss(colors.deep, 1)} 100%)`
     }
+    const aura = createAuraRenderer(auraCanvas, diameter, colors, scheme)
 
     let frame = 0
     let previousTime = performance.now()
@@ -471,7 +761,15 @@ export function OceanTheme({
     let glow = 0.26
     let tiltAmplitude = 0.028
     let levelOffset = 0
-    let haloOpacity = 0.3
+    let corona = 0.3
+    let reach = 0.24
+    let orbit = 0
+    let sweep = 0
+    let pulseDepth = 0.3
+    let pulseClock = 0
+    let sinceRing = 0
+    const rings: AuraRing[] = []
+    const orbiters = createOrbiters()
 
     const render = (now: number) => {
       const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05)
@@ -496,11 +794,32 @@ export function OceanTheme({
       glow = damp(glow, targets.glow, 3.2, deltaSeconds)
       tiltAmplitude = damp(tiltAmplitude, targets.tiltAmplitude, 1.8, deltaSeconds)
       levelOffset = damp(levelOffset, targets.levelOffset, 3, deltaSeconds)
+      corona = damp(corona, targets.corona, targets.corona > corona ? 6 : 2.5, deltaSeconds)
+      reach = damp(reach, targets.reach, targets.reach > reach ? 7 : 2.5, deltaSeconds)
+      orbit = damp(orbit, targets.orbit, 3, deltaSeconds)
+      sweep = damp(sweep, targets.sweep, 3, deltaSeconds)
+      pulseDepth = damp(pulseDepth, targets.pulse, 2.5, deltaSeconds)
 
       if (!reducedMotion) {
         time += deltaSeconds * speed
         breath += (deltaSeconds * Math.PI * 2) / BREATH_PERIOD_SECONDS
         tiltClock += deltaSeconds * 0.31
+        pulseClock += (deltaSeconds * Math.PI * 2) / PULSE_PERIOD_SECONDS
+        for (const orbiter of orbiters) {
+          orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 0.9)
+        }
+        // Rings are emitted on a cadence the state sets; a louder voice sends
+        // them faster and brighter. Silence while speaking sends none.
+        sinceRing += deltaSeconds
+        const emitting =
+          targets.ringEvery > 0 &&
+          (nextState !== 'speaking' || speak > 0.04) &&
+          (nextState !== 'listening' || listen > 0.03)
+        if (emitting && sinceRing >= targets.ringEvery) {
+          sinceRing = 0
+          rings.push({ born: clock, strength: targets.ringStrength, inward: targets.ringInward })
+        }
+        while (rings.length > 0 && clock - rings[0].born > RING_LIFE_SECONDS) rings.shift()
       }
 
       const level = BASE_LEVEL + levelOffset + Math.sin(breath) * 0.022
@@ -517,10 +836,26 @@ export function OceanTheme({
         speak,
       })
 
-      const haloTarget = nextState === 'error' ? 0.08 : 0.28 + glow * 0.3 + speak * 0.35
-      haloOpacity = damp(haloOpacity, haloTarget, 4, deltaSeconds)
-      halo.style.opacity = String(haloOpacity)
-      halo.style.transform = `scale(${1 + speak * 0.08 + Math.sin(breath) * 0.015})`
+      // The body swells with the voice and keeps a slow pulse of its own, so the
+      // orb is never a still picture even when the water is calm.
+      const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
+      const bodyScale = 1 + speak * 0.09 + listen * 0.04 + pulse * 0.022 + Math.sin(breath) * 0.006
+      body.style.transform = reducedMotion ? 'none' : `scale(${bodyScale})`
+
+      aura?.draw({
+        time: clock,
+        corona: reducedMotion ? corona * 0.6 : corona,
+        reach,
+        glow,
+        speak,
+        listen,
+        orbit: reducedMotion ? 0 : orbit,
+        sweep: reducedMotion ? 0 : sweep,
+        pulse,
+        breath,
+        rings: reducedMotion ? [] : rings,
+        orbiters,
+      })
 
       frame = requestAnimationFrame(render)
     }
@@ -532,7 +867,7 @@ export function OceanTheme({
       motionQuery.removeEventListener('change', updateReducedMotion)
       renderer?.destroy()
     }
-  }, [diameter, paletteKey])
+  }, [diameter, paletteKey, scheme])
 
   const rootStyle: CSSProperties = {
     width: size,
@@ -544,8 +879,11 @@ export function OceanTheme({
     ...style,
   }
 
+  const auraSide = diameter * AURA_SCALE
+
   const content = (
     <span
+      ref={bodyRef}
       style={{
         position: 'relative',
         display: 'block',
@@ -554,21 +892,21 @@ export function OceanTheme({
         borderRadius: '50%',
         lineHeight: 0,
         cursor: interactive ? (disabled ? 'not-allowed' : 'pointer') : 'default',
+        transformOrigin: 'center',
+        willChange: 'transform',
       }}
     >
-      <span
-        ref={haloRef}
-        data-ocean-halo=""
+      <canvas
+        ref={auraRef}
         aria-hidden="true"
+        data-ocean-aura=""
         style={{
           position: 'absolute',
-          inset: `-${diameter * 0.28}px`,
+          left: (diameter - auraSide) / 2,
+          top: (diameter - auraSide) / 2,
           display: 'block',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${rgbToCss(resolved.glow, 0.55)} 0%, ${rgbToCss(resolved.shallow, 0.22)} 42%, ${rgbToCss(resolved.shallow, 0)} 72%)`,
-          opacity: 0.3,
-          transformOrigin: 'center',
-          willChange: 'opacity, transform',
+          width: auraSide,
+          height: auraSide,
           pointerEvents: 'none',
         }}
       />

@@ -107,7 +107,7 @@ describe('Orb accessibility', () => {
     expect(html).toContain('var(--orb-ui-radial-control-surround)')
   })
 
-  it('renders the ocean theme as a passive visual with a halo and surface', () => {
+  it('renders the ocean theme as a passive visual with an aura and surface', () => {
     const html = renderToStaticMarkup(
       <Orb
         adapter={createAdapter()}
@@ -121,9 +121,8 @@ describe('Orb accessibility', () => {
 
     expect(html).toContain('<canvas')
     expect(html).toContain('data-ocean-surface=""')
-    expect(html).toContain('data-ocean-halo=""')
+    expect(html).toContain('data-ocean-aura=""')
     expect(html).toContain('data-testid="ocean-orb"')
-    expect(html).toContain('rgba(255, 217, 160, 0.55)')
     expect(html).not.toContain('<button')
     expect(html).not.toContain('scheme=')
     expect(html).not.toContain('palette=')
