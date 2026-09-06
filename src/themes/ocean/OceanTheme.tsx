@@ -200,7 +200,11 @@ function hexToRgb(hex: string, fallback: Rgb): Rgb {
 }
 
 function mixRgb(a: Rgb, b: Rgb, amount: number): Rgb {
-  return [a[0] + (b[0] - a[0]) * amount, a[1] + (b[1] - a[1]) * amount, a[2] + (b[2] - a[2]) * amount]
+  return [
+    a[0] + (b[0] - a[0]) * amount,
+    a[1] + (b[1] - a[1]) * amount,
+    a[2] + (b[2] - a[2]) * amount,
+  ]
 }
 
 function rgbToCss([r, g, b]: Rgb, alpha: number) {
@@ -502,8 +506,8 @@ const BASE_LEVEL = 0.1
 const BREATH_PERIOD_SECONDS = 7.5
 const PULSE_PERIOD_SECONDS = 3.2
 /**
- * Overdamped spring with a time constant near half a second: the orb follows
- * the rise and fall of the voice over whole phrases, never over syllables.
+ * Overdamped spring with a time constant near half a second: the water inside
+ * follows the mouth over whole phrases, never over single words.
  */
 const SURGE_STIFFNESS = 14
 const SURGE_DAMPING = 8
@@ -517,19 +521,83 @@ const RING_TRAVEL_RADII = 0.3
 const RING_LIFE_SECONDS = 2.2
 const ORBITER_COUNT = 3
 /**
- * The mouth: how far the orb has opened for the word being spoken. It is a
- * two-stage follower of the voice's level, normalised against a slowly decaying
- * peak so it always uses its full range whatever the analyser's gain, with an
- * attack a little over a tenth of a second and a release a third of a second —
- * the shape of words, not of syllables and not of sentences.
+ * The mouth is an animation, not a meter. A voice's loudness barely changes
+ * across a sentence while the mouth that speaks it never stops moving, so
+ * the orb articulates on its own while the state is `speaking`: a run of
+ * gestures, each a random openness held for a word's length, with a change
+ * of tempo every couple of seconds and a closed breath now and then between
+ * phrases. Gestures last a fifth to half a second; the tempo stretches or
+ * compresses them; the follower rounds every corner so nothing snaps.
  */
-const MOUTH_ATTACK = 9
-const MOUTH_RELEASE = 3.2
-const MOUTH_SMOOTHING = 14
-const PEAK_DECAY = 0.45
-const PEAK_FLOOR = 0.25
+const GESTURE_MIN_SECONDS = 0.18
+const GESTURE_SPAN_SECONDS = 0.3
+const GESTURE_BREATH_CHANCE = 0.1
+const GESTURE_BREATH_MIN_SECONDS = 0.35
+const GESTURE_BREATH_SPAN_SECONDS = 0.4
+const TEMPO_CHOICES = [0.7, 0.85, 1, 1, 1.2, 1.45]
+const TEMPO_MIN_SECONDS = 1.4
+const TEMPO_SPAN_SECONDS = 2.2
+const MOUTH_FOLLOW_OPENING = 11
+const MOUTH_FOLLOW_CLOSING = 8
+const MOUTH_FOLLOW_REST = 3.5
 /** The orb grows this much of its diameter when fully open. */
-const MOUTH_OPEN_SCALE = 0.085
+const MOUTH_OPEN_SCALE = 0.07
+
+interface Articulation {
+  open: number
+  target: number
+  remaining: number
+  tempo: number
+  tempoRemaining: number
+  gestureBegan: boolean
+}
+
+function createArticulation(): Articulation {
+  return { open: 0, target: 0, remaining: 0, tempo: 1, tempoRemaining: 0, gestureBegan: false }
+}
+
+function pick<T>(choices: readonly T[]): T {
+  return choices[Math.floor(Math.random() * choices.length)]
+}
+
+/**
+ * Advances the mouth by one frame. Returns true on the frame a wide gesture
+ * begins, which is what the speaking rings are timed to.
+ */
+function articulate(mouth: Articulation, speaking: boolean, deltaSeconds: number): boolean {
+  mouth.gestureBegan = false
+  if (!speaking) {
+    mouth.target = 0
+    mouth.remaining = 0
+    mouth.tempoRemaining = 0
+    mouth.open = damp(mouth.open, 0, MOUTH_FOLLOW_REST, deltaSeconds)
+    return false
+  }
+  mouth.tempoRemaining -= deltaSeconds
+  if (mouth.tempoRemaining <= 0) {
+    mouth.tempo = pick(TEMPO_CHOICES)
+    mouth.tempoRemaining = TEMPO_MIN_SECONDS + Math.random() * TEMPO_SPAN_SECONDS
+  }
+  mouth.remaining -= deltaSeconds
+  if (mouth.remaining <= 0) {
+    if (Math.random() < GESTURE_BREATH_CHANCE) {
+      mouth.target = 0.04
+      mouth.remaining = GESTURE_BREATH_MIN_SECONDS + Math.random() * GESTURE_BREATH_SPAN_SECONDS
+    } else {
+      // Openness is drawn so that mid-range words are the common case and the
+      // fully open ones the accent; two gestures in a row never look the same.
+      const draw = Math.random()
+      const next = 0.22 + Math.pow(draw, 0.7) * 0.78
+      mouth.target =
+        Math.abs(next - mouth.target) < 0.18 ? clamp(next + (next > 0.6 ? -0.3 : 0.3)) : next
+      mouth.remaining = (GESTURE_MIN_SECONDS + Math.random() * GESTURE_SPAN_SECONDS) * mouth.tempo
+      mouth.gestureBegan = mouth.target > 0.7
+    }
+  }
+  const rate = mouth.target > mouth.open ? MOUTH_FOLLOW_OPENING : MOUTH_FOLLOW_CLOSING
+  mouth.open = damp(mouth.open, mouth.target, rate / mouth.tempo, deltaSeconds)
+  return mouth.gestureBegan
+}
 
 interface AuraRing {
   born: number
@@ -599,7 +667,8 @@ function createAuraRenderer(
   const radius = diameter / 2
   // In the dark the glow colour alone burns white under additive blending, so
   // the corona leans on the water's own blue and keeps the pale glow for edges.
-  const accent: Rgb = scheme === 'dark' ? mixRgb(palette.shallow, palette.glow, 0.35) : palette.shallow
+  const accent: Rgb =
+    scheme === 'dark' ? mixRgb(palette.shallow, palette.glow, 0.35) : palette.shallow
   const light: Rgb = scheme === 'dark' ? mixRgb(palette.glow, palette.foam, 0.4) : palette.deep
   const deep: Rgb = scheme === 'dark' ? palette.shallow : palette.deep
   const lineAlpha = scheme === 'dark' ? 1 : 0.75
@@ -616,9 +685,17 @@ function createAuraRenderer(
 
       // Corona: the light the orb throws on the room. It reaches further and
       // burns brighter with the voice, and breathes even when nothing else moves.
-      const reach = radius * (1 + motion.reach + motion.pulse * 0.03 + Math.sin(motion.breath) * 0.015)
+      const reach =
+        radius * (1 + motion.reach + motion.pulse * 0.03 + Math.sin(motion.breath) * 0.015)
       const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.55 : 0.5))
-      const corona = context.createRadialGradient(centre, centre, radius * 0.9, centre, centre, reach)
+      const corona = context.createRadialGradient(
+        centre,
+        centre,
+        radius * 0.9,
+        centre,
+        centre,
+        reach,
+      )
       corona.addColorStop(0, rgbToCss(accent, coronaAlpha))
       corona.addColorStop(0.3, rgbToCss(accent, coronaAlpha * 0.5))
       corona.addColorStop(0.65, rgbToCss(accent, coronaAlpha * 0.15))
@@ -631,7 +708,14 @@ function createAuraRenderer(
       const voice = clamp(motion.speak + motion.listen * 0.6)
       if (voice > 0.01) {
         const coreReach = radius * (1.02 + voice * 0.5)
-        const core = context.createRadialGradient(centre, centre, radius * 0.95, centre, centre, coreReach)
+        const core = context.createRadialGradient(
+          centre,
+          centre,
+          radius * 0.95,
+          centre,
+          centre,
+          coreReach,
+        )
         core.addColorStop(0, rgbToCss(accent, 0.35 * voice * lineAlpha))
         core.addColorStop(0.4, rgbToCss(light, 0.1 * voice * lineAlpha))
         core.addColorStop(1, rgbToCss(light, 0))
@@ -641,9 +725,18 @@ function createAuraRenderer(
       }
 
       // Rim light: a bright band hugging the glass that flares with the voice.
-      const rimAlpha = clamp((0.3 + motion.glow * 0.35 + motion.speak * 0.2 + motion.listen * 0.25) * lineAlpha)
+      const rimAlpha = clamp(
+        (0.3 + motion.glow * 0.35 + motion.speak * 0.2 + motion.listen * 0.25) * lineAlpha,
+      )
       const rimReach = radius * (1.06 + motion.speak * 0.04)
-      const rim = context.createRadialGradient(centre, centre, radius * 0.97, centre, centre, rimReach)
+      const rim = context.createRadialGradient(
+        centre,
+        centre,
+        radius * 0.97,
+        centre,
+        centre,
+        rimReach,
+      )
       rim.addColorStop(0, rgbToCss(light, rimAlpha))
       rim.addColorStop(1, rgbToCss(light, 0))
       context.fillStyle = rim
@@ -709,7 +802,12 @@ function createAuraRenderer(
       // Sweep: the arc that circles while a connection is being made.
       if (motion.sweep > 0.01) {
         const arcs = [
-          { orbitRadius: radius * 1.12, start: motion.time * 2.0, span: Math.PI * 0.55, width: 0.025 },
+          {
+            orbitRadius: radius * 1.12,
+            start: motion.time * 2.0,
+            span: Math.PI * 0.55,
+            width: 0.025,
+          },
         ]
         for (const { orbitRadius, start, span, width } of arcs) {
           const arc = context.createConicGradient(start, centre, centre)
@@ -805,10 +903,7 @@ export function OceanTheme({
     let pulseClock = 0
     let surge = 0
     let surgeVelocity = 0
-    let peak = PEAK_FLOOR
-    let mouthRaw = 0
-    let mouth = 0
-    let mouthWasOpen = false
+    const articulation = createArticulation()
     let sinceRing = 0
     const rings: AuraRing[] = []
     const orbiters = createOrbiters()
@@ -827,10 +922,16 @@ export function OceanTheme({
         ? 0
         : damp(currentVolume, rawVolume, rawVolume > currentVolume ? 4 : 1.5, deltaSeconds)
 
+      const speaking = nextState === 'speaking' && !reducedMotion
+      const gestureBegan = articulate(articulation, speaking, deltaSeconds)
+      const mouth = articulation.open
       const listenTarget = nextState === 'listening' ? currentVolume : 0
-      const speakTarget = nextState === 'speaking' ? currentVolume : 0
+      // How much the sea answers the voice is the state's, not the meter's:
+      // it settles at a steady murmur while she talks and the mouth on top of
+      // it carries the words.
+      const speakTarget = speaking ? 0.45 + mouth * 0.35 : 0
       listen = damp(listen, listenTarget, listenTarget > listen ? 4 : 1.5, deltaSeconds)
-      speak = damp(speak, speakTarget, speakTarget > speak ? 4 : 1.5, deltaSeconds)
+      speak = damp(speak, speakTarget, speakTarget > speak ? 3 : 1.5, deltaSeconds)
 
       clock += deltaSeconds
       const targets = resolveTargets(nextState, listen, speak, clock)
@@ -845,16 +946,12 @@ export function OceanTheme({
       sweep = damp(sweep, targets.sweep, 3, deltaSeconds)
       pulseDepth = damp(pulseDepth, targets.pulse, 2.5, deltaSeconds)
 
-      const surgeTarget = nextState === 'speaking' ? currentVolume : 0
+      // The water inside lifts with the mouth through a soft spring, so the
+      // sea swells a beat behind each word rather than jumping with it.
+      const surgeTarget = speaking ? 0.25 + mouth * 0.5 : 0
       surgeVelocity += (surgeTarget - surge) * SURGE_STIFFNESS * deltaSeconds
       surgeVelocity *= Math.exp(-SURGE_DAMPING * deltaSeconds)
       surge += surgeVelocity * deltaSeconds
-
-      const speaking = nextState === 'speaking' && !reducedMotion
-      peak = Math.max(speaking ? rawVolume : 0, PEAK_FLOOR, peak - (peak - PEAK_FLOOR) * PEAK_DECAY * deltaSeconds)
-      const mouthTarget = speaking ? clamp(rawVolume / peak) : 0
-      mouthRaw = damp(mouthRaw, mouthTarget, mouthTarget > mouthRaw ? MOUTH_ATTACK : MOUTH_RELEASE, deltaSeconds)
-      mouth = damp(mouth, mouthRaw, MOUTH_SMOOTHING, deltaSeconds)
 
       if (!reducedMotion) {
         time += deltaSeconds * speed
@@ -864,24 +961,21 @@ export function OceanTheme({
         for (const orbiter of orbiters) {
           orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 0.9)
         }
-        // Rings: while speaking, one soft breath from the rim as the mouth opens
-        // on a word, at most one a second; otherwise on the cadence the state sets.
+        // Rings: while speaking, one soft breath from the rim as a wide word
+        // begins, at most one a second; otherwise on the cadence the state sets.
         sinceRing += deltaSeconds
-        const mouthOpen = mouth > 0.55
         if (speaking) {
-          if (mouthOpen && !mouthWasOpen && sinceRing >= 1) {
+          if (gestureBegan && sinceRing >= 1) {
             sinceRing = 0
             rings.push({ born: clock, strength: targets.ringStrength, inward: false })
           }
         } else {
-          const emitting =
-            targets.ringEvery > 0 && (nextState !== 'listening' || listen > 0.03)
+          const emitting = targets.ringEvery > 0 && (nextState !== 'listening' || listen > 0.03)
           if (emitting && sinceRing >= targets.ringEvery) {
             sinceRing = 0
             rings.push({ born: clock, strength: targets.ringStrength, inward: targets.ringInward })
           }
         }
-        mouthWasOpen = mouthOpen
         while (rings.length > 0 && clock - rings[0].born > RING_LIFE_SECONDS) rings.shift()
       }
 
@@ -902,10 +996,10 @@ export function OceanTheme({
         surge: elastic,
       })
 
-      // The body stays a circle. It opens and closes with the words like a mouth
-      // — smoothly, on the words' own rhythm — and otherwise breathes slowly.
+      // The body stays a circle. It opens and closes like a mouth on the
+      // articulation's own rhythm and otherwise breathes slowly.
       const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
-      const open = Math.pow(mouth, 0.85) * MOUTH_OPEN_SCALE
+      const open = mouth * MOUTH_OPEN_SCALE
       const bodyScale = 1 + pulse * 0.012 + Math.sin(breath) * 0.005 + open + listen * 0.015
       body.style.transform = reducedMotion ? 'none' : `scale(${bodyScale})`
 
