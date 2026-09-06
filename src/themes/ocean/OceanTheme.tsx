@@ -31,6 +31,10 @@ interface OceanMotion {
   tilt: number
   listen: number
   speak: number
+  /** Syllabic pulse of the voice, 0–1: the water jumps on it. */
+  beat: number
+  /** Elastic overshoot of the body, may exceed 1 or dip below 0. */
+  surge: number
 }
 
 interface OceanRenderer {
@@ -88,6 +92,8 @@ uniform float u_glow;
 uniform float u_tilt;
 uniform float u_listen;
 uniform float u_speak;
+uniform float u_beat;
+uniform float u_surge;
 uniform vec3 u_deep;
 uniform vec3 u_shallow;
 uniform vec3 u_foam;
@@ -127,6 +133,13 @@ void main() {
 
   float t = u_time;
   float front = swellHeight(q.x, t, u_swell) + rippleHeight(q.x, t, u_ripple);
+  // The voice lifts a column of water in the middle of the orb and drops it on
+  // every beat, so the sea itself is seen to talk, not just the glass around it.
+  float column = exp(-q.x * q.x * 3.2);
+  float voice = u_speak * (0.16 + 0.14 * u_beat) * column;
+  voice += u_speak * 0.05 * sin(q.x * 9.0 - t * 7.0) * (0.5 + 0.5 * u_beat);
+  voice += u_surge * 0.05;
+  front += voice;
   float waterline = u_level + front;
   float d = q.y - waterline;
   float depth = max(0.0, -d);
@@ -136,9 +149,11 @@ void main() {
   float backline = u_level - 0.16 + back;
   float backBand = 1.0 - smoothstep(0.0, 0.06, abs(q.y - backline));
 
-  vec3 water = mix(u_shallow, u_deep, smoothstep(0.0, 1.05, depth));
-  float caustic = sin(q.x * 6.0 + front * 4.0 + t * 0.8) * sin(q.y * 5.0 - t * 0.6 + q.x * 1.5);
-  caustic = pow(max(caustic, 0.0), 3.0) * exp(-depth * 1.6) * (0.28 + u_glow * 0.45);
+  vec3 water = mix(u_shallow, u_deep, smoothstep(0.0, 1.05 + u_speak * 0.6, depth));
+  water = mix(water, u_shallow * 1.35, u_speak * 0.4 * exp(-depth * 1.8) * (0.6 + 0.4 * u_beat));
+  float caustic = sin(q.x * (6.0 + u_speak * 4.0) + front * 4.0 + t * (0.8 + u_speak * 2.5))
+    * sin(q.y * 5.0 - t * (0.6 + u_speak * 2.0) + q.x * 1.5);
+  caustic = pow(max(caustic, 0.0), 3.0) * exp(-depth * 1.6) * (0.28 + u_glow * 0.45 + u_speak * 0.5);
   water = mix(water, u_shallow * 1.25, caustic);
   float shaft = pow(max(sin(q.x * 3.0 + t * 0.27), 0.0), 5.0) * exp(-depth * 2.2);
   water = mix(water, u_light, shaft * 0.08 * (0.4 + u_glow));
@@ -152,8 +167,15 @@ void main() {
 
   vec3 color = d < 0.0 ? water : air;
 
-  float foamWidth = 30.0 - u_speak * 10.0;
-  float foam = exp(-abs(d) * foamWidth) * (0.6 + u_speak * 0.35 + u_listen * 0.2);
+  // Spray: droplets thrown up over the crest on loud beats.
+  float dropletField = sin(q.x * 41.0 + t * 6.5) * sin(q.y * 37.0 - t * 9.0 + q.x * 3.0);
+  float spray = pow(max(dropletField, 0.0), 14.0)
+    * u_speak * (0.4 + 0.6 * u_beat)
+    * smoothstep(0.0, 0.05, d) * (1.0 - smoothstep(0.12, 0.42, d)) * column;
+  color = mix(color, u_foam, clamp(spray * 1.6, 0.0, 1.0));
+
+  float foamWidth = 30.0 - u_speak * 14.0;
+  float foam = exp(-abs(d) * foamWidth) * (0.6 + u_speak * 0.5 + u_beat * u_speak * 0.3 + u_listen * 0.2);
   float crest = smoothstep(0.35, 1.0, front / max(u_swell * 1.85, 0.001));
   foam += crest * exp(-abs(d) * 16.0) * (0.22 + u_speak * 0.3);
   color = mix(color, u_foam, clamp(foam, 0.0, 0.92));
@@ -187,6 +209,10 @@ function hexToRgb(hex: string, fallback: Rgb): Rgb {
   if (!match) return fallback
   const value = parseInt(match[1], 16)
   return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255]
+}
+
+function mixRgb(a: Rgb, b: Rgb, amount: number): Rgb {
+  return [a[0] + (b[0] - a[0]) * amount, a[1] + (b[1] - a[1]) * amount, a[2] + (b[2] - a[2]) * amount]
 }
 
 function rgbToCss([r, g, b]: Rgb, alpha: number) {
@@ -293,6 +319,8 @@ function createOceanRenderer(
     tilt: uniform('u_tilt'),
     listen: uniform('u_listen'),
     speak: uniform('u_speak'),
+    beat: uniform('u_beat'),
+    surge: uniform('u_surge'),
     deep: uniform('u_deep'),
     shallow: uniform('u_shallow'),
     foam: uniform('u_foam'),
@@ -339,6 +367,8 @@ function createOceanRenderer(
       gl.uniform1f(locations.tilt, motion.tilt)
       gl.uniform1f(locations.listen, motion.listen)
       gl.uniform1f(locations.speak, motion.speak)
+      gl.uniform1f(locations.beat, motion.beat)
+      gl.uniform1f(locations.surge, motion.surge)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     },
     destroy,
@@ -432,11 +462,11 @@ function resolveTargets(
       }
     case 'speaking':
       return {
-        swell: 0.065 + speak * 0.12,
-        speed: 0.9 + speak * 1.1,
-        glow: 0.6 + speak * 0.4,
-        tiltAmplitude: 0.035,
-        levelOffset: 0.02 + speak * 0.05,
+        swell: 0.08 + speak * 0.2,
+        speed: 1.1 + speak * 1.8,
+        glow: 0.65 + speak * 0.35,
+        tiltAmplitude: 0.05,
+        levelOffset: 0.06 + speak * 0.16,
         corona: 0.75 + speak * 0.25,
         reach: 0.6 + speak * 0.6,
         ringEvery: 0.36 - speak * 0.18,
@@ -485,6 +515,11 @@ function resolveTargets(
 const BASE_LEVEL = 0.1
 const BREATH_PERIOD_SECONDS = 7.5
 const PULSE_PERIOD_SECONDS = 1.6
+/** Syllable rate of ordinary speech; the body and the water beat to it. */
+const BEAT_HZ = 4.3
+/** Underdamped spring: the body overshoots on each rise of the voice and rings down. */
+const SURGE_STIFFNESS = 140
+const SURGE_DAMPING = 8
 /** The aura canvas is this many artwork diameters wide, so effects reach well past the rim. */
 const AURA_SCALE = 2.6
 const RING_TRAVEL_RADII = 1.25
@@ -557,8 +592,10 @@ function createAuraRenderer(
 
   const centre = side / 2
   const radius = diameter / 2
-  const accent: Rgb = scheme === 'dark' ? palette.glow : palette.shallow
-  const light: Rgb = scheme === 'dark' ? palette.foam : palette.deep
+  // In the dark the glow colour alone burns white under additive blending, so
+  // the corona leans on the water's own blue and keeps the pale glow for edges.
+  const accent: Rgb = scheme === 'dark' ? mixRgb(palette.shallow, palette.glow, 0.35) : palette.shallow
+  const light: Rgb = scheme === 'dark' ? mixRgb(palette.glow, palette.foam, 0.4) : palette.deep
   const deep: Rgb = scheme === 'dark' ? palette.shallow : palette.deep
   const lineAlpha = scheme === 'dark' ? 1 : 0.75
 
@@ -575,7 +612,7 @@ function createAuraRenderer(
       // Corona: the light the orb throws on the room. It reaches further and
       // burns brighter with the voice, and breathes even when nothing else moves.
       const reach = radius * (1 + motion.reach + motion.pulse * 0.04 + Math.sin(motion.breath) * 0.02)
-      const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.85 : 0.7))
+      const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.75 : 0.7))
       const corona = context.createRadialGradient(centre, centre, radius * 0.9, centre, centre, reach)
       corona.addColorStop(0, rgbToCss(accent, coronaAlpha))
       corona.addColorStop(0.3, rgbToCss(accent, coronaAlpha * 0.5))
@@ -590,7 +627,8 @@ function createAuraRenderer(
       if (voice > 0.01) {
         const coreReach = radius * (1.02 + voice * 0.5)
         const core = context.createRadialGradient(centre, centre, radius * 0.95, centre, centre, coreReach)
-        core.addColorStop(0, rgbToCss(light, 0.55 * voice * lineAlpha))
+        core.addColorStop(0, rgbToCss(accent, 0.6 * voice * lineAlpha))
+        core.addColorStop(0.4, rgbToCss(light, 0.2 * voice * lineAlpha))
         core.addColorStop(1, rgbToCss(light, 0))
         context.fillStyle = core
         circle(centre, centre, coreReach)
@@ -598,7 +636,7 @@ function createAuraRenderer(
       }
 
       // Rim light: a bright band hugging the glass that flares with the voice.
-      const rimAlpha = clamp((0.3 + motion.glow * 0.4 + motion.speak * 0.5 + motion.listen * 0.4) * lineAlpha)
+      const rimAlpha = clamp((0.3 + motion.glow * 0.4 + motion.speak * 0.3 + motion.listen * 0.4) * lineAlpha)
       const rimReach = radius * (1.08 + motion.speak * 0.1)
       const rim = context.createRadialGradient(centre, centre, radius * 0.97, centre, centre, rimReach)
       rim.addColorStop(0, rgbToCss(light, rimAlpha))
@@ -619,13 +657,13 @@ function createAuraRenderer(
           : Math.pow(1 - age, 1.3)
         const alpha = clamp(fade * ring.strength)
         if (alpha < 0.005) continue
-        const width = radius * (0.03 + ring.strength * 0.05) * (1 - path * 0.45)
-        context.lineWidth = width * 3.5
-        context.strokeStyle = rgbToCss(accent, alpha * 0.35)
+        const width = radius * (0.012 + ring.strength * 0.022) * (1 - path * 0.4)
+        context.lineWidth = width * 5
+        context.strokeStyle = rgbToCss(accent, alpha * 0.28)
         circle(centre, centre, ringRadius)
         context.stroke()
         context.lineWidth = width
-        context.strokeStyle = rgbToCss(light, alpha * lineAlpha)
+        context.strokeStyle = rgbToCss(light, alpha * 0.7 * lineAlpha)
         circle(centre, centre, ringRadius)
         context.stroke()
       }
@@ -767,6 +805,9 @@ export function OceanTheme({
     let sweep = 0
     let pulseDepth = 0.3
     let pulseClock = 0
+    let beatClock = 0
+    let surge = 0
+    let surgeVelocity = 0
     let sinceRing = 0
     const rings: AuraRing[] = []
     const orbiters = createOrbiters()
@@ -800,11 +841,19 @@ export function OceanTheme({
       sweep = damp(sweep, targets.sweep, 3, deltaSeconds)
       pulseDepth = damp(pulseDepth, targets.pulse, 2.5, deltaSeconds)
 
+      // The spring chases the raw voice level, not the smoothed one, so every
+      // rise in the voice kicks the body and the body rings after it.
+      const surgeTarget = nextState === 'speaking' ? rawVolume : 0
+      surgeVelocity += (surgeTarget - surge) * SURGE_STIFFNESS * deltaSeconds
+      surgeVelocity *= Math.exp(-SURGE_DAMPING * deltaSeconds)
+      surge += surgeVelocity * deltaSeconds
+
       if (!reducedMotion) {
         time += deltaSeconds * speed
         breath += (deltaSeconds * Math.PI * 2) / BREATH_PERIOD_SECONDS
         tiltClock += deltaSeconds * 0.31
         pulseClock += (deltaSeconds * Math.PI * 2) / PULSE_PERIOD_SECONDS
+        beatClock += deltaSeconds * Math.PI * 2 * BEAT_HZ * (0.8 + speak * 0.4)
         for (const orbiter of orbiters) {
           orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 0.9)
         }
@@ -825,6 +874,9 @@ export function OceanTheme({
       const level = BASE_LEVEL + levelOffset + Math.sin(breath) * 0.022
       const tilt = Math.sin(tiltClock) * tiltAmplitude + Math.sin(tiltClock * 2.3 + 0.7) * 0.006
 
+      const beat = reducedMotion ? 0 : (0.5 + 0.5 * Math.sin(beatClock)) * speak
+      const elastic = reducedMotion ? 0 : surge
+
       renderer?.draw({
         time,
         level,
@@ -834,13 +886,22 @@ export function OceanTheme({
         tilt: reducedMotion ? 0 : tilt,
         listen,
         speak,
+        beat,
+        surge: elastic,
       })
 
-      // The body swells with the voice and keeps a slow pulse of its own, so the
-      // orb is never a still picture even when the water is calm.
+      // The body is elastic: it stretches upward and narrows on each surge of
+      // the voice, squashes back on the release, and never quite sits still.
       const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
-      const bodyScale = 1 + speak * 0.09 + listen * 0.04 + pulse * 0.022 + Math.sin(breath) * 0.006
-      body.style.transform = reducedMotion ? 'none' : `scale(${bodyScale})`
+      const breathScale = pulse * 0.022 + Math.sin(breath) * 0.006
+      const stretch = elastic * 0.2 + beat * 0.06 + speak * 0.03
+      const squash = elastic * 0.04 - beat * 0.04 + speak * 0.03
+      const scaleY = 1 + breathScale + stretch + listen * 0.05
+      const scaleX = 1 + breathScale + squash + listen * 0.05
+      const lean = surgeVelocity * 0.9
+      body.style.transform = reducedMotion
+        ? 'none'
+        : `scale(${scaleX}, ${scaleY}) rotate(${lean}deg)`
 
       aura?.draw({
         time: clock,
