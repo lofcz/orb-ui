@@ -556,82 +556,94 @@ const RING_TRAVEL_RADII = 0.3
 const RING_LIFE_SECONDS = 2.2
 const ORBITER_COUNT = 3
 /**
- * The mouth is an animation, not a meter. A voice's loudness barely changes
- * across a sentence while the mouth that speaks it never stops moving, so
- * the orb articulates on its own while the state is `speaking`: a run of
- * gestures, each a random openness held for a word's length, with a change
- * of tempo every couple of seconds and a closed breath now and then between
- * phrases. Gestures last a fifth to half a second; the tempo stretches or
- * compresses them; the follower rounds every corner so nothing snaps.
+ * The mouth is prosody, not a meter. A voice's loudness barely changes across
+ * a sentence, and a mouth that flicks open and shut on every syllable reads
+ * as a tremor from across the room; what a listener sees in a speaker is the
+ * slow swell of phrases and the odd stressed word. So while the state is
+ * `speaking` the orb breathes on a band-limited modulation: two octaves of
+ * smooth noise, none of it faster than about a hertz, under a phrase-long
+ * envelope, with a stressed word lifting it every few seconds. Nothing in it
+ * has a corner, so nothing ever snaps.
  */
-const GESTURE_MIN_SECONDS = 0.18
-const GESTURE_SPAN_SECONDS = 0.3
-const GESTURE_BREATH_CHANCE = 0.1
-const GESTURE_BREATH_MIN_SECONDS = 0.35
-const GESTURE_BREATH_SPAN_SECONDS = 0.4
-const TEMPO_CHOICES = [0.7, 0.85, 1, 1, 1.2, 1.45]
-const TEMPO_MIN_SECONDS = 1.4
-const TEMPO_SPAN_SECONDS = 2.2
-const MOUTH_FOLLOW_OPENING = 11
-const MOUTH_FOLLOW_CLOSING = 8
+const PROSODY_BASE_HZ = 0.5
+const PROSODY_DETAIL_HZ = 1.1
+const PROSODY_DETAIL_WEIGHT = 0.4
+const PHRASE_HZ = 0.16
+const STRESS_MIN_SECONDS = 2.4
+const STRESS_SPAN_SECONDS = 3.6
+const STRESS_SECONDS = 1.1
+const STRESS_LIFT = 0.4
+const MOUTH_FOLLOW = 6
 const MOUTH_FOLLOW_REST = 3.5
 /** The orb grows this much of its diameter when fully open. */
-const MOUTH_OPEN_SCALE = 0.07
+const MOUTH_OPEN_SCALE = 0.09
 
 interface Articulation {
   open: number
-  target: number
-  remaining: number
-  tempo: number
-  tempoRemaining: number
-  gestureBegan: boolean
+  clock: number
+  seed: number
+  phrasePhase: number
+  untilStress: number
+  stressAt: number
+  stressBegan: boolean
 }
 
 function createArticulation(): Articulation {
-  return { open: 0, target: 0, remaining: 0, tempo: 1, tempoRemaining: 0, gestureBegan: false }
+  return {
+    open: 0,
+    clock: 0,
+    seed: Math.random() * 1000,
+    phrasePhase: Math.random() * Math.PI * 2,
+    untilStress: STRESS_MIN_SECONDS + Math.random() * STRESS_SPAN_SECONDS,
+    stressAt: -Infinity,
+    stressBegan: false,
+  }
 }
 
-function pick<T>(choices: readonly T[]): T {
-  return choices[Math.floor(Math.random() * choices.length)]
+/** A repeatable 0–1 for every integer, so the noise below is a curve and not a coin toss per frame. */
+function lattice(index: number, seed: number): number {
+  const x = Math.sin(index * 12.9898 + seed * 78.233) * 43758.5453
+  return x - Math.floor(x)
+}
+
+/** Smooth value noise in 0–1: random points a period apart, joined without a kink. */
+function smoothNoise(time: number, hz: number, seed: number): number {
+  const position = time * hz
+  const index = Math.floor(position)
+  const fraction = position - index
+  const eased = fraction * fraction * fraction * (fraction * (fraction * 6 - 15) + 10)
+  return lattice(index, seed) * (1 - eased) + lattice(index + 1, seed) * eased
 }
 
 /**
- * Advances the mouth by one frame. Returns true on the frame a wide gesture
+ * Advances the mouth by one frame. Returns true on the frame a stressed word
  * begins, which is what the speaking rings are timed to.
  */
 function articulate(mouth: Articulation, speaking: boolean, deltaSeconds: number): boolean {
-  mouth.gestureBegan = false
+  mouth.stressBegan = false
   if (!speaking) {
-    mouth.target = 0
-    mouth.remaining = 0
-    mouth.tempoRemaining = 0
     mouth.open = damp(mouth.open, 0, MOUTH_FOLLOW_REST, deltaSeconds)
     return false
   }
-  mouth.tempoRemaining -= deltaSeconds
-  if (mouth.tempoRemaining <= 0) {
-    mouth.tempo = pick(TEMPO_CHOICES)
-    mouth.tempoRemaining = TEMPO_MIN_SECONDS + Math.random() * TEMPO_SPAN_SECONDS
+  mouth.clock += deltaSeconds
+  mouth.untilStress -= deltaSeconds
+  if (mouth.untilStress <= 0) {
+    mouth.stressAt = mouth.clock
+    mouth.stressBegan = true
+    mouth.untilStress = STRESS_MIN_SECONDS + Math.random() * STRESS_SPAN_SECONDS
   }
-  mouth.remaining -= deltaSeconds
-  if (mouth.remaining <= 0) {
-    if (Math.random() < GESTURE_BREATH_CHANCE) {
-      mouth.target = 0.04
-      mouth.remaining = GESTURE_BREATH_MIN_SECONDS + Math.random() * GESTURE_BREATH_SPAN_SECONDS
-    } else {
-      // Openness is drawn so that mid-range words are the common case and the
-      // fully open ones the accent; two gestures in a row never look the same.
-      const draw = Math.random()
-      const next = 0.22 + Math.pow(draw, 0.7) * 0.78
-      mouth.target =
-        Math.abs(next - mouth.target) < 0.18 ? clamp(next + (next > 0.6 ? -0.3 : 0.3)) : next
-      mouth.remaining = (GESTURE_MIN_SECONDS + Math.random() * GESTURE_SPAN_SECONDS) * mouth.tempo
-      mouth.gestureBegan = mouth.target > 0.7
-    }
-  }
-  const rate = mouth.target > mouth.open ? MOUTH_FOLLOW_OPENING : MOUTH_FOLLOW_CLOSING
-  mouth.open = damp(mouth.open, mouth.target, rate / mouth.tempo, deltaSeconds)
-  return mouth.gestureBegan
+
+  const base = smoothNoise(mouth.clock, PROSODY_BASE_HZ, mouth.seed)
+  const detail = smoothNoise(mouth.clock, PROSODY_DETAIL_HZ, mouth.seed + 1)
+  const texture = (base + detail * PROSODY_DETAIL_WEIGHT) / (1 + PROSODY_DETAIL_WEIGHT)
+  const phrase =
+    0.55 + 0.45 * (0.5 + 0.5 * Math.sin(mouth.clock * Math.PI * 2 * PHRASE_HZ + mouth.phrasePhase))
+  const sinceStress = (mouth.clock - mouth.stressAt) / STRESS_SECONDS
+  const stress = sinceStress < 1 ? 0.5 - 0.5 * Math.cos(sinceStress * Math.PI * 2) : 0
+  const target = clamp(phrase * (0.15 + 0.85 * texture) + stress * STRESS_LIFT)
+
+  mouth.open = damp(mouth.open, target, MOUTH_FOLLOW, deltaSeconds)
+  return mouth.stressBegan
 }
 
 interface AuraRing {
@@ -954,7 +966,7 @@ export function OceanTheme({
       const rawVolume = clamp(volumeRef.current)
 
       const speaking = nextState === 'speaking' && !reducedMotion
-      const gestureBegan = articulate(articulation, speaking, deltaSeconds)
+      const stressBegan = articulate(articulation, speaking, deltaSeconds)
       const mouth = articulation.open
       // Listening follows the room's voice closely: the answer to being heard
       // has to come inside the word, not a second after it, so it takes the raw
@@ -997,11 +1009,11 @@ export function OceanTheme({
         for (const orbiter of orbiters) {
           orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 1.5)
         }
-        // Rings: while speaking, one soft breath from the rim as a wide word
-        // begins, at most one a second; otherwise on the cadence the state sets.
+        // Rings: while speaking, one soft breath from the rim as a stressed
+        // word begins, at most one a second; otherwise on the cadence the state sets.
         sinceRing += deltaSeconds
         if (speaking) {
-          if (gestureBegan && sinceRing >= 1) {
+          if (stressBegan && sinceRing >= 1) {
             sinceRing = 0
             rings.push({ born: clock, strength: targets.ringStrength, inward: false })
           }
@@ -1041,13 +1053,14 @@ export function OceanTheme({
         churn: reducedMotion ? 0 : churn,
       })
 
-      // The body stays a circle. It opens and closes like a mouth on the
-      // articulation's own rhythm and otherwise breathes slowly.
-      const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
+      // The body stays a circle. It swells and settles like a chest on the
+      // prosody's own rhythm and otherwise beats slowly: a long rest and a
+      // soft rise rather than a sine, the way a pulse is felt.
+      const pulse = Math.pow(0.5 + 0.5 * Math.sin(pulseClock), 1.7) * pulseDepth
       const open = mouth * MOUTH_OPEN_SCALE
       // Listening leans in: the body swells and lifts a little toward the voice.
       const bodyScale =
-        1 + pulse * (0.012 + churn * 0.008) + Math.sin(breath) * 0.005 + open + listen * 0.04
+        1 + pulse * (0.02 + churn * 0.01) + Math.sin(breath) * 0.005 + open + listen * 0.04
       const lift = listen * diameter * 0.012
       body.style.transform = reducedMotion ? 'none' : `translateY(${-lift}px) scale(${bodyScale})`
 
