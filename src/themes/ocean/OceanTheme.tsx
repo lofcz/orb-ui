@@ -33,6 +33,8 @@ interface OceanMotion {
   speak: number
   /** The voice's slow envelope, 0–1: the tide the sea follows while she speaks. */
   surge: number
+  /** How hard the water works while she thinks, 0–1: brighter caustics and a light that wanders through the depth. */
+  churn: number
 }
 
 interface OceanRenderer {
@@ -91,6 +93,7 @@ uniform float u_tilt;
 uniform float u_listen;
 uniform float u_speak;
 uniform float u_surge;
+uniform float u_churn;
 uniform vec3 u_deep;
 uniform vec3 u_shallow;
 uniform vec3 u_foam;
@@ -107,7 +110,8 @@ float swellHeight(float x, float t, float swell) {
 }
 
 float rippleHeight(float x, float t, float ripple) {
-  return ripple * 0.028 * sin(x * 12.0 - t * 5.2) * sin(x * 7.5 + t * 3.7);
+  return ripple * 0.04 * sin(x * 12.0 - t * 5.2) * sin(x * 7.5 + t * 3.7)
+    + ripple * 0.012 * sin(x * 19.0 + t * 7.9);
 }
 
 void main() {
@@ -147,10 +151,16 @@ void main() {
   vec3 water = mix(u_shallow, u_deep, smoothstep(0.0, 1.05 + u_speak * 0.6, depth));
   water = mix(water, u_shallow * 1.3, u_surge * 0.18 * exp(-depth * 1.8));
   float caustic = sin(q.x * 6.0 + front * 4.0 + t * 0.8) * sin(q.y * 5.0 - t * 0.6 + q.x * 1.5);
-  caustic = pow(max(caustic, 0.0), 3.0) * exp(-depth * 1.6) * (0.28 + u_glow * 0.45 + u_surge * 0.2);
+  caustic = pow(max(caustic, 0.0), 3.0) * exp(-depth * 1.6) * (0.28 + u_glow * 0.45 + u_surge * 0.2 + u_churn * 0.4);
   water = mix(water, u_shallow * 1.25, caustic);
   float shaft = pow(max(sin(q.x * 3.0 + t * 0.27), 0.0), 5.0) * exp(-depth * 2.2);
   water = mix(water, u_light, shaft * 0.08 * (0.4 + u_glow));
+  // Thought: a slow light wanders through the depth, crossing the water on a
+  // diagonal and turning as it goes, as if something below were being turned over.
+  float wander = sin(q.x * 2.2 + q.y * 1.6 + t * 1.9) * sin(q.x * 1.3 - q.y * 2.4 - t * 1.1 + 0.8);
+  float thought = pow(max(wander, 0.0), 4.0) * exp(-depth * 1.2) * u_churn;
+  water = mix(water, u_light, thought * 0.2);
+  water = mix(water, u_shallow * 1.35, thought * 0.25);
   water = mix(water, mix(u_shallow, u_foam, 0.3), backBand * 0.14 * step(0.0, -d));
   water = mix(water, u_deep, exp(-depth * 24.0) * 0.18);
 
@@ -163,7 +173,7 @@ void main() {
 
 
   float foamWidth = 30.0 - u_surge * 8.0;
-  float foam = exp(-abs(d) * foamWidth) * (0.6 + u_surge * 0.3 + u_listen * 0.15);
+  float foam = exp(-abs(d) * foamWidth) * (0.6 + u_surge * 0.3 + u_listen * 0.35);
   float crest = smoothstep(0.35, 1.0, front / max(u_swell * 1.85, 0.001));
   foam += crest * exp(-abs(d) * 16.0) * (0.22 + u_speak * 0.3);
   color = mix(color, u_foam, clamp(foam, 0.0, 0.92));
@@ -312,6 +322,7 @@ function createOceanRenderer(
     listen: uniform('u_listen'),
     speak: uniform('u_speak'),
     surge: uniform('u_surge'),
+    churn: uniform('u_churn'),
     deep: uniform('u_deep'),
     shallow: uniform('u_shallow'),
     foam: uniform('u_foam'),
@@ -359,6 +370,7 @@ function createOceanRenderer(
       gl.uniform1f(locations.listen, motion.listen)
       gl.uniform1f(locations.speak, motion.speak)
       gl.uniform1f(locations.surge, motion.surge)
+      gl.uniform1f(locations.churn, motion.churn)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     },
     destroy,
@@ -387,6 +399,10 @@ interface StateTargets {
   sweep: number
   /** Slow whole-body pulse that says "alive" when the water alone is too quiet. */
   pulse: number
+  /** How fast the pulse beats, as a multiple of the resting rate. */
+  pulseRate: number
+  /** How hard the water works, 0–1: only thought stirs it. */
+  churn: number
 }
 
 /**
@@ -417,38 +433,49 @@ function resolveTargets(
         orbit: 0,
         sweep: 1,
         pulse: 0.5,
+        pulseRate: 1,
+        churn: 0,
       }
     case 'listening':
+      // Attention is the room's: the water quickens, rises and brightens with
+      // the voice it hears, and the rings gather in faster the more is said.
       return {
-        swell: 0.045 + listen * 0.03,
-        speed: 0.45 + listen * 0.25,
-        glow: 0.42 + listen * 0.5,
-        tiltAmplitude: 0.03,
-        levelOffset: listen * 0.05,
-        corona: 0.36 + listen * 0.3,
-        reach: 0.24 + listen * 0.1,
-        ringEvery: 1.6 - listen * 0.5,
-        ringStrength: 0.3 + listen * 0.35,
+        swell: 0.045 + listen * 0.055,
+        speed: 0.45 + listen * 0.55,
+        glow: 0.44 + listen * 0.55,
+        tiltAmplitude: 0.03 + listen * 0.02,
+        levelOffset: listen * 0.09,
+        corona: 0.38 + listen * 0.45,
+        reach: 0.24 + listen * 0.16,
+        ringEvery: Math.max(0.45, 1.4 - listen * 1.0),
+        ringStrength: 0.3 + listen * 0.5,
         ringInward: true,
         orbit: 0,
         sweep: 0,
         pulse: 0.3,
+        pulseRate: 1,
+        churn: 0,
       }
     case 'thinking':
+      // Thought is visibly work: the sea runs quicker and tips further as it
+      // weighs things, a light wanders through the depth, sparks circle faster
+      // and the whole body beats quicker and deeper.
       return {
-        swell: 0.05,
-        speed: 0.7,
-        glow: 0.5 + 0.1 * Math.sin(clock * 1.6),
-        tiltAmplitude: 0.045,
-        levelOffset: 0.01,
-        corona: 0.38 + 0.08 * Math.sin(clock * 1.6),
-        reach: 0.28,
+        swell: 0.06,
+        speed: 1.0,
+        glow: 0.52 + 0.16 * Math.sin(clock * 2.2),
+        tiltAmplitude: 0.075,
+        levelOffset: 0.015,
+        corona: 0.42 + 0.14 * Math.sin(clock * 2.2),
+        reach: 0.32,
         ringEvery: 0,
         ringStrength: 0,
         ringInward: true,
         orbit: 1,
-        sweep: 0,
+        sweep: 0.4,
         pulse: 1,
+        pulseRate: 1.8,
+        churn: 1,
       }
     case 'speaking':
       return {
@@ -465,6 +492,8 @@ function resolveTargets(
         orbit: 0,
         sweep: 0,
         pulse: 0.2,
+        pulseRate: 1,
+        churn: 0,
       }
     case 'error':
       return {
@@ -481,6 +510,8 @@ function resolveTargets(
         orbit: 0,
         sweep: 0,
         pulse: 0,
+        pulseRate: 1,
+        churn: 0,
       }
     case 'idle':
     default:
@@ -498,6 +529,8 @@ function resolveTargets(
         orbit: 0,
         sweep: 0,
         pulse: 0.35,
+        pulseRate: 1,
+        churn: 0,
       }
   }
 }
@@ -505,6 +538,8 @@ function resolveTargets(
 const BASE_LEVEL = 0.1
 const BREATH_PERIOD_SECONDS = 7.5
 const PULSE_PERIOD_SECONDS = 3.2
+/** The listening level at which a voice counts as having started. */
+const LISTEN_ONSET = 0.14
 /**
  * Overdamped spring with a time constant near half a second: the water inside
  * follows the mouth over whole phrases, never over single words.
@@ -887,7 +922,6 @@ export function OceanTheme({
     let clock = 0
     let breath = 0
     let tiltClock = 0
-    let currentVolume = clamp(volumeRef.current)
     let listen = 0
     let speak = 0
     let swell = 0.036
@@ -900,7 +934,10 @@ export function OceanTheme({
     let orbit = 0
     let sweep = 0
     let pulseDepth = 0.3
+    let pulseRate = 1
     let pulseClock = 0
+    let churn = 0
+    let heard = false
     let surge = 0
     let surgeVelocity = 0
     const articulation = createArticulation()
@@ -915,22 +952,19 @@ export function OceanTheme({
       const nextState = stateRef.current
       const reducedMotion = reducedMotionRef.current
       const rawVolume = clamp(volumeRef.current)
-      // Level tracking is slow on purpose: the analyser jumps with every
-      // syllable and the orb must not. A rise takes a good fraction of a second,
-      // a fall a couple of seconds.
-      currentVolume = reducedMotion
-        ? 0
-        : damp(currentVolume, rawVolume, rawVolume > currentVolume ? 4 : 1.5, deltaSeconds)
 
       const speaking = nextState === 'speaking' && !reducedMotion
       const gestureBegan = articulate(articulation, speaking, deltaSeconds)
       const mouth = articulation.open
-      const listenTarget = nextState === 'listening' ? currentVolume : 0
+      // Listening follows the room's voice closely: the answer to being heard
+      // has to come inside the word, not a second after it, so it takes the raw
+      // level with a quick rise and a fall that lasts about as long as a breath.
+      const listenTarget = nextState === 'listening' && !reducedMotion ? rawVolume : 0
       // How much the sea answers the voice is the state's, not the meter's:
       // it settles at a steady murmur while she talks and the mouth on top of
       // it carries the words.
       const speakTarget = speaking ? 0.45 + mouth * 0.35 : 0
-      listen = damp(listen, listenTarget, listenTarget > listen ? 4 : 1.5, deltaSeconds)
+      listen = damp(listen, listenTarget, listenTarget > listen ? 10 : 2.2, deltaSeconds)
       speak = damp(speak, speakTarget, speakTarget > speak ? 3 : 1.5, deltaSeconds)
 
       clock += deltaSeconds
@@ -945,6 +979,8 @@ export function OceanTheme({
       orbit = damp(orbit, targets.orbit, 3, deltaSeconds)
       sweep = damp(sweep, targets.sweep, 3, deltaSeconds)
       pulseDepth = damp(pulseDepth, targets.pulse, 2.5, deltaSeconds)
+      pulseRate = damp(pulseRate, targets.pulseRate, 2, deltaSeconds)
+      churn = damp(churn, targets.churn, targets.churn > churn ? 1.6 : 2.5, deltaSeconds)
 
       // The water inside lifts with the mouth through a soft spring, so the
       // sea swells a beat behind each word rather than jumping with it.
@@ -957,9 +993,9 @@ export function OceanTheme({
         time += deltaSeconds * speed
         breath += (deltaSeconds * Math.PI * 2) / BREATH_PERIOD_SECONDS
         tiltClock += deltaSeconds * 0.31
-        pulseClock += (deltaSeconds * Math.PI * 2) / PULSE_PERIOD_SECONDS
+        pulseClock += (deltaSeconds * Math.PI * 2 * pulseRate) / PULSE_PERIOD_SECONDS
         for (const orbiter of orbiters) {
-          orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 0.9)
+          orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 1.5)
         }
         // Rings: while speaking, one soft breath from the rim as a wide word
         // begins, at most one a second; otherwise on the cadence the state sets.
@@ -970,6 +1006,14 @@ export function OceanTheme({
             rings.push({ born: clock, strength: targets.ringStrength, inward: false })
           }
         } else {
+          // The moment a voice starts, a ring gathers in at once: being heard
+          // is answered before the cadence has had time to.
+          const hearing = nextState === 'listening' && listen > LISTEN_ONSET
+          if (hearing && !heard && sinceRing >= 0.25) {
+            sinceRing = 0
+            rings.push({ born: clock, strength: 0.7, inward: true })
+          }
+          heard = hearing
           const emitting = targets.ringEvery > 0 && (nextState !== 'listening' || listen > 0.03)
           if (emitting && sinceRing >= targets.ringEvery) {
             sinceRing = 0
@@ -994,14 +1038,18 @@ export function OceanTheme({
         listen,
         speak,
         surge: elastic,
+        churn: reducedMotion ? 0 : churn,
       })
 
       // The body stays a circle. It opens and closes like a mouth on the
       // articulation's own rhythm and otherwise breathes slowly.
       const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
       const open = mouth * MOUTH_OPEN_SCALE
-      const bodyScale = 1 + pulse * 0.012 + Math.sin(breath) * 0.005 + open + listen * 0.015
-      body.style.transform = reducedMotion ? 'none' : `scale(${bodyScale})`
+      // Listening leans in: the body swells and lifts a little toward the voice.
+      const bodyScale =
+        1 + pulse * (0.012 + churn * 0.008) + Math.sin(breath) * 0.005 + open + listen * 0.04
+      const lift = listen * diameter * 0.012
+      body.style.transform = reducedMotion ? 'none' : `translateY(${-lift}px) scale(${bodyScale})`
 
       aura?.draw({
         time: clock,
