@@ -405,8 +405,8 @@ function resolveTargets(
         glow: 0.3 + 0.2 * Math.sin(clock * 2.6),
         tiltAmplitude: 0.02,
         levelOffset: 0,
-        corona: 0.32 + 0.12 * Math.sin(clock * 2.6),
-        reach: 0.28,
+        corona: 0.3 + 0.1 * Math.sin(clock * 2.6),
+        reach: 0.24,
         ringEvery: 0,
         ringStrength: 0,
         ringInward: false,
@@ -421,8 +421,8 @@ function resolveTargets(
         glow: 0.42 + listen * 0.5,
         tiltAmplitude: 0.03,
         levelOffset: listen * 0.05,
-        corona: 0.38 + listen * 0.32,
-        reach: 0.28 + listen * 0.22,
+        corona: 0.36 + listen * 0.3,
+        reach: 0.24 + listen * 0.1,
         ringEvery: 1.6 - listen * 0.5,
         ringStrength: 0.3 + listen * 0.35,
         ringInward: true,
@@ -434,11 +434,11 @@ function resolveTargets(
       return {
         swell: 0.05,
         speed: 0.7,
-        glow: 0.6 + 0.25 * Math.sin(clock * 3.1),
-        tiltAmplitude: 0.06,
+        glow: 0.5 + 0.1 * Math.sin(clock * 1.6),
+        tiltAmplitude: 0.045,
         levelOffset: 0.01,
-        corona: 0.45 + 0.15 * Math.sin(clock * 3.1),
-        reach: 0.38,
+        corona: 0.38 + 0.08 * Math.sin(clock * 1.6),
+        reach: 0.28,
         ringEvery: 0,
         ringStrength: 0,
         ringInward: true,
@@ -454,9 +454,9 @@ function resolveTargets(
         tiltAmplitude: 0.035,
         levelOffset: 0.02 + speak * 0.05,
         corona: 0.45 + speak * 0.3,
-        reach: 0.28 + speak * 0.24,
-        ringEvery: 1.6 - speak * 0.3,
-        ringStrength: 0.25 + speak * 0.25,
+        reach: 0.24 + speak * 0.1,
+        ringEvery: 0,
+        ringStrength: 0.3,
         ringInward: false,
         orbit: 0,
         sweep: 0,
@@ -487,8 +487,8 @@ function resolveTargets(
         tiltAmplitude: 0.028,
         levelOffset: 0,
         corona: 0.3,
-        reach: 0.24,
-        ringEvery: 5,
+        reach: 0.22,
+        ringEvery: 6,
         ringStrength: 0.25,
         ringInward: false,
         orbit: 0,
@@ -507,11 +507,29 @@ const PULSE_PERIOD_SECONDS = 3.2
  */
 const SURGE_STIFFNESS = 14
 const SURGE_DAMPING = 8
-/** The aura canvas is this many artwork diameters wide, so effects reach past the rim. */
-const AURA_SCALE = 2.2
-const RING_TRAVEL_RADII = 0.7
-const RING_LIFE_SECONDS = 3.4
-const ORBITER_COUNT = 4
+/**
+ * The aura canvas is this many artwork diameters wide. Everything drawn on it
+ * stays within about a third of a radius of the rim, so nothing reaches the
+ * text that sits under the orb.
+ */
+const AURA_SCALE = 1.7
+const RING_TRAVEL_RADII = 0.3
+const RING_LIFE_SECONDS = 2.2
+const ORBITER_COUNT = 3
+/**
+ * The mouth: how far the orb has opened for the word being spoken. It is a
+ * two-stage follower of the voice's level, normalised against a slowly decaying
+ * peak so it always uses its full range whatever the analyser's gain, with an
+ * attack a little over a tenth of a second and a release a third of a second —
+ * the shape of words, not of syllables and not of sentences.
+ */
+const MOUTH_ATTACK = 9
+const MOUTH_RELEASE = 3.2
+const MOUTH_SMOOTHING = 14
+const PEAK_DECAY = 0.45
+const PEAK_FLOOR = 0.25
+/** The orb grows this much of its diameter when fully open. */
+const MOUTH_OPEN_SCALE = 0.085
 
 interface AuraRing {
   born: number
@@ -549,9 +567,9 @@ interface AuraRenderer {
 function createOrbiters(): Orbiter[] {
   return Array.from({ length: ORBITER_COUNT }, (_, index) => ({
     angle: (index / ORBITER_COUNT) * Math.PI * 2,
-    speed: (0.9 + (index % 3) * 0.35) * (index % 2 === 0 ? 1 : -1),
-    radius: 1.14 + (index % 2) * 0.1,
-    size: 0.018 + (index % 2) * 0.008,
+    speed: (0.55 + (index % 3) * 0.2) * (index % 2 === 0 ? 1 : -1),
+    radius: 1.12 + (index % 2) * 0.08,
+    size: 0.016 + (index % 2) * 0.006,
     wobble: 0.7 + index * 0.37,
   }))
 }
@@ -598,7 +616,7 @@ function createAuraRenderer(
 
       // Corona: the light the orb throws on the room. It reaches further and
       // burns brighter with the voice, and breathes even when nothing else moves.
-      const reach = radius * (1 + motion.reach + motion.pulse * 0.04 + Math.sin(motion.breath) * 0.02)
+      const reach = radius * (1 + motion.reach + motion.pulse * 0.03 + Math.sin(motion.breath) * 0.015)
       const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.55 : 0.5))
       const corona = context.createRadialGradient(centre, centre, radius * 0.9, centre, centre, reach)
       corona.addColorStop(0, rgbToCss(accent, coronaAlpha))
@@ -644,25 +662,19 @@ function createAuraRenderer(
           : Math.pow(1 - age, 1.3)
         const alpha = clamp(fade * ring.strength)
         if (alpha < 0.005) continue
-        const width = radius * (0.008 + ring.strength * 0.012) * (1 - path * 0.4)
+        const width = radius * (0.01 + ring.strength * 0.014) * (1 - path * 0.3)
         context.lineWidth = width * 4
-        context.strokeStyle = rgbToCss(accent, alpha * 0.18)
+        context.strokeStyle = rgbToCss(accent, alpha * 0.16)
         circle(centre, centre, ringRadius)
         context.stroke()
         context.lineWidth = width
-        context.strokeStyle = rgbToCss(light, alpha * 0.45 * lineAlpha)
+        context.strokeStyle = rgbToCss(light, alpha * 0.4 * lineAlpha)
         circle(centre, centre, ringRadius)
         context.stroke()
       }
 
       // Orbiters: sparks that circle the orb while it thinks, each with a tail.
       if (motion.orbit > 0.01) {
-        for (const pathRadius of [1.14, 1.24]) {
-          context.lineWidth = radius * 0.006
-          context.strokeStyle = rgbToCss(accent, 0.12 * motion.orbit * lineAlpha)
-          circle(centre, centre, radius * pathRadius)
-          context.stroke()
-        }
         for (const orbiter of motion.orbiters) {
           const wobble = Math.sin(motion.time * orbiter.wobble) * 0.05
           const orbitRadius = radius * (orbiter.radius + wobble)
@@ -686,7 +698,7 @@ function createAuraRenderer(
           const x = centre + Math.cos(orbiter.angle) * orbitRadius
           const y = centre + Math.sin(orbiter.angle) * orbitRadius
           const sparkHalo = context.createRadialGradient(x, y, 0, x, y, haloRadius)
-          sparkHalo.addColorStop(0, rgbToCss(accent, 0.5 * motion.orbit))
+          sparkHalo.addColorStop(0, rgbToCss(accent, 0.35 * motion.orbit))
           sparkHalo.addColorStop(1, rgbToCss(accent, 0))
           context.fillStyle = sparkHalo
           circle(x, y, haloRadius)
@@ -793,6 +805,10 @@ export function OceanTheme({
     let pulseClock = 0
     let surge = 0
     let surgeVelocity = 0
+    let peak = PEAK_FLOOR
+    let mouthRaw = 0
+    let mouth = 0
+    let mouthWasOpen = false
     let sinceRing = 0
     const rings: AuraRing[] = []
     const orbiters = createOrbiters()
@@ -834,6 +850,12 @@ export function OceanTheme({
       surgeVelocity *= Math.exp(-SURGE_DAMPING * deltaSeconds)
       surge += surgeVelocity * deltaSeconds
 
+      const speaking = nextState === 'speaking' && !reducedMotion
+      peak = Math.max(speaking ? rawVolume : 0, PEAK_FLOOR, peak - (peak - PEAK_FLOOR) * PEAK_DECAY * deltaSeconds)
+      const mouthTarget = speaking ? clamp(rawVolume / peak) : 0
+      mouthRaw = damp(mouthRaw, mouthTarget, mouthTarget > mouthRaw ? MOUTH_ATTACK : MOUTH_RELEASE, deltaSeconds)
+      mouth = damp(mouth, mouthRaw, MOUTH_SMOOTHING, deltaSeconds)
+
       if (!reducedMotion) {
         time += deltaSeconds * speed
         breath += (deltaSeconds * Math.PI * 2) / BREATH_PERIOD_SECONDS
@@ -842,17 +864,24 @@ export function OceanTheme({
         for (const orbiter of orbiters) {
           orbiter.angle += deltaSeconds * orbiter.speed * (0.6 + orbit * 0.9)
         }
-        // Rings are emitted on a cadence the state sets; a louder voice sends
-        // them faster and brighter. Silence while speaking sends none.
+        // Rings: while speaking, one soft breath from the rim as the mouth opens
+        // on a word, at most one a second; otherwise on the cadence the state sets.
         sinceRing += deltaSeconds
-        const emitting =
-          targets.ringEvery > 0 &&
-          (nextState !== 'speaking' || speak > 0.04) &&
-          (nextState !== 'listening' || listen > 0.03)
-        if (emitting && sinceRing >= targets.ringEvery) {
-          sinceRing = 0
-          rings.push({ born: clock, strength: targets.ringStrength, inward: targets.ringInward })
+        const mouthOpen = mouth > 0.55
+        if (speaking) {
+          if (mouthOpen && !mouthWasOpen && sinceRing >= 1) {
+            sinceRing = 0
+            rings.push({ born: clock, strength: targets.ringStrength, inward: false })
+          }
+        } else {
+          const emitting =
+            targets.ringEvery > 0 && (nextState !== 'listening' || listen > 0.03)
+          if (emitting && sinceRing >= targets.ringEvery) {
+            sinceRing = 0
+            rings.push({ born: clock, strength: targets.ringStrength, inward: targets.ringInward })
+          }
         }
+        mouthWasOpen = mouthOpen
         while (rings.length > 0 && clock - rings[0].born > RING_LIFE_SECONDS) rings.shift()
       }
 
@@ -873,18 +902,19 @@ export function OceanTheme({
         surge: elastic,
       })
 
-      // The body stays a circle and moves at the pace of breathing: a slow pulse,
-      // and a gentle swell that follows the voice over whole phrases.
+      // The body stays a circle. It opens and closes with the words like a mouth
+      // — smoothly, on the words' own rhythm — and otherwise breathes slowly.
       const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
-      const bodyScale = 1 + pulse * 0.015 + Math.sin(breath) * 0.005 + elastic * 0.035 + listen * 0.015
+      const open = Math.pow(mouth, 0.85) * MOUTH_OPEN_SCALE
+      const bodyScale = 1 + pulse * 0.012 + Math.sin(breath) * 0.005 + open + listen * 0.015
       body.style.transform = reducedMotion ? 'none' : `scale(${bodyScale})`
 
       aura?.draw({
         time: clock,
-        corona: reducedMotion ? corona * 0.6 : corona,
+        corona: reducedMotion ? corona * 0.6 : corona + mouth * 0.2,
         reach,
         glow,
-        speak,
+        speak: Math.max(speak, mouth * 0.8),
         listen,
         orbit: reducedMotion ? 0 : orbit,
         sweep: reducedMotion ? 0 : sweep,
