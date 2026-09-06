@@ -133,12 +133,12 @@ void main() {
 
   float t = u_time;
   float front = swellHeight(q.x, t, u_swell) + rippleHeight(q.x, t, u_ripple);
-  // The voice lifts a column of water in the middle of the orb and drops it on
-  // every beat, so the sea itself is seen to talk, not just the glass around it.
+  // The voice lifts the water gently in the middle of the orb and lets it fall
+  // on each beat, so the sea is seen to talk without the glass changing shape.
   float column = exp(-q.x * q.x * 3.2);
-  float voice = u_speak * (0.16 + 0.14 * u_beat) * column;
-  voice += u_speak * 0.05 * sin(q.x * 9.0 - t * 7.0) * (0.5 + 0.5 * u_beat);
-  voice += u_surge * 0.05;
+  float voice = u_speak * (0.045 + 0.035 * u_beat) * column;
+  voice += u_speak * 0.02 * sin(q.x * 9.0 - t * 7.0) * (0.5 + 0.5 * u_beat);
+  voice += u_surge * 0.02;
   front += voice;
   float waterline = u_level + front;
   float d = q.y - waterline;
@@ -150,10 +150,10 @@ void main() {
   float backBand = 1.0 - smoothstep(0.0, 0.06, abs(q.y - backline));
 
   vec3 water = mix(u_shallow, u_deep, smoothstep(0.0, 1.05 + u_speak * 0.6, depth));
-  water = mix(water, u_shallow * 1.35, u_speak * 0.4 * exp(-depth * 1.8) * (0.6 + 0.4 * u_beat));
-  float caustic = sin(q.x * (6.0 + u_speak * 4.0) + front * 4.0 + t * (0.8 + u_speak * 2.5))
-    * sin(q.y * 5.0 - t * (0.6 + u_speak * 2.0) + q.x * 1.5);
-  caustic = pow(max(caustic, 0.0), 3.0) * exp(-depth * 1.6) * (0.28 + u_glow * 0.45 + u_speak * 0.5);
+  water = mix(water, u_shallow * 1.3, u_speak * 0.22 * exp(-depth * 1.8) * (0.6 + 0.4 * u_beat));
+  float caustic = sin(q.x * (6.0 + u_speak * 2.0) + front * 4.0 + t * (0.8 + u_speak * 1.2))
+    * sin(q.y * 5.0 - t * (0.6 + u_speak * 1.0) + q.x * 1.5);
+  caustic = pow(max(caustic, 0.0), 3.0) * exp(-depth * 1.6) * (0.28 + u_glow * 0.45 + u_speak * 0.3);
   water = mix(water, u_shallow * 1.25, caustic);
   float shaft = pow(max(sin(q.x * 3.0 + t * 0.27), 0.0), 5.0) * exp(-depth * 2.2);
   water = mix(water, u_light, shaft * 0.08 * (0.4 + u_glow));
@@ -171,11 +171,11 @@ void main() {
   float dropletField = sin(q.x * 41.0 + t * 6.5) * sin(q.y * 37.0 - t * 9.0 + q.x * 3.0);
   float spray = pow(max(dropletField, 0.0), 14.0)
     * u_speak * (0.4 + 0.6 * u_beat)
-    * smoothstep(0.0, 0.05, d) * (1.0 - smoothstep(0.12, 0.42, d)) * column;
-  color = mix(color, u_foam, clamp(spray * 1.6, 0.0, 1.0));
+    * smoothstep(0.0, 0.05, d) * (1.0 - smoothstep(0.1, 0.3, d)) * column;
+  color = mix(color, u_foam, clamp(spray * 0.8, 0.0, 0.7));
 
-  float foamWidth = 30.0 - u_speak * 14.0;
-  float foam = exp(-abs(d) * foamWidth) * (0.6 + u_speak * 0.5 + u_beat * u_speak * 0.3 + u_listen * 0.2);
+  float foamWidth = 30.0 - u_speak * 10.0;
+  float foam = exp(-abs(d) * foamWidth) * (0.6 + u_speak * 0.35 + u_beat * u_speak * 0.2 + u_listen * 0.2);
   float crest = smoothstep(0.35, 1.0, front / max(u_swell * 1.85, 0.001));
   foam += crest * exp(-abs(d) * 16.0) * (0.22 + u_speak * 0.3);
   color = mix(color, u_foam, clamp(foam, 0.0, 0.92));
@@ -419,8 +419,8 @@ function resolveTargets(
         glow: 0.3 + 0.2 * Math.sin(clock * 2.6),
         tiltAmplitude: 0.02,
         levelOffset: 0,
-        corona: 0.4 + 0.2 * Math.sin(clock * 2.6),
-        reach: 0.38,
+        corona: 0.32 + 0.12 * Math.sin(clock * 2.6),
+        reach: 0.28,
         ringEvery: 0,
         ringStrength: 0,
         ringInward: false,
@@ -435,10 +435,10 @@ function resolveTargets(
         glow: 0.42 + listen * 0.5,
         tiltAmplitude: 0.03,
         levelOffset: listen * 0.05,
-        corona: 0.5 + listen * 0.5,
-        reach: 0.4 + listen * 0.45,
-        ringEvery: 0.75 - listen * 0.45,
-        ringStrength: 0.45 + listen * 0.55,
+        corona: 0.38 + listen * 0.32,
+        reach: 0.28 + listen * 0.22,
+        ringEvery: 1.6 - listen * 0.5,
+        ringStrength: 0.3 + listen * 0.35,
         ringInward: true,
         orbit: 0,
         sweep: 0,
@@ -451,8 +451,8 @@ function resolveTargets(
         glow: 0.6 + 0.25 * Math.sin(clock * 3.1),
         tiltAmplitude: 0.06,
         levelOffset: 0.01,
-        corona: 0.65 + 0.25 * Math.sin(clock * 3.1),
-        reach: 0.55,
+        corona: 0.45 + 0.15 * Math.sin(clock * 3.1),
+        reach: 0.38,
         ringEvery: 0,
         ringStrength: 0,
         ringInward: true,
@@ -462,15 +462,15 @@ function resolveTargets(
       }
     case 'speaking':
       return {
-        swell: 0.08 + speak * 0.2,
-        speed: 1.1 + speak * 1.8,
-        glow: 0.65 + speak * 0.35,
-        tiltAmplitude: 0.05,
-        levelOffset: 0.06 + speak * 0.16,
-        corona: 0.75 + speak * 0.25,
-        reach: 0.6 + speak * 0.6,
-        ringEvery: 0.36 - speak * 0.18,
-        ringStrength: 0.55 + speak * 0.45,
+        swell: 0.06 + speak * 0.08,
+        speed: 0.8 + speak * 0.7,
+        glow: 0.6 + speak * 0.3,
+        tiltAmplitude: 0.04,
+        levelOffset: 0.03 + speak * 0.06,
+        corona: 0.5 + speak * 0.3,
+        reach: 0.3 + speak * 0.28,
+        ringEvery: 1.3 - speak * 0.4,
+        ringStrength: 0.3 + speak * 0.3,
         ringInward: false,
         orbit: 0,
         sweep: 0,
@@ -517,14 +517,14 @@ const BREATH_PERIOD_SECONDS = 7.5
 const PULSE_PERIOD_SECONDS = 1.6
 /** Syllable rate of ordinary speech; the body and the water beat to it. */
 const BEAT_HZ = 4.3
-/** Underdamped spring: the body overshoots on each rise of the voice and rings down. */
-const SURGE_STIFFNESS = 140
-const SURGE_DAMPING = 8
-/** The aura canvas is this many artwork diameters wide, so effects reach well past the rim. */
-const AURA_SCALE = 2.6
-const RING_TRAVEL_RADII = 1.25
-const RING_LIFE_SECONDS = 1.9
-const ORBITER_COUNT = 6
+/** Near-critically damped spring: the body follows the voice's envelope softly, without overshoot. */
+const SURGE_STIFFNESS = 60
+const SURGE_DAMPING = 15
+/** The aura canvas is this many artwork diameters wide, so effects reach past the rim. */
+const AURA_SCALE = 2.2
+const RING_TRAVEL_RADII = 0.7
+const RING_LIFE_SECONDS = 2.8
+const ORBITER_COUNT = 4
 
 interface AuraRing {
   born: number
@@ -563,8 +563,8 @@ function createOrbiters(): Orbiter[] {
   return Array.from({ length: ORBITER_COUNT }, (_, index) => ({
     angle: (index / ORBITER_COUNT) * Math.PI * 2,
     speed: (0.9 + (index % 3) * 0.35) * (index % 2 === 0 ? 1 : -1),
-    radius: 1.14 + (index % 3) * 0.11,
-    size: 0.03 + (index % 2) * 0.014,
+    radius: 1.14 + (index % 2) * 0.1,
+    size: 0.018 + (index % 2) * 0.008,
     wobble: 0.7 + index * 0.37,
   }))
 }
@@ -612,7 +612,7 @@ function createAuraRenderer(
       // Corona: the light the orb throws on the room. It reaches further and
       // burns brighter with the voice, and breathes even when nothing else moves.
       const reach = radius * (1 + motion.reach + motion.pulse * 0.04 + Math.sin(motion.breath) * 0.02)
-      const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.75 : 0.7))
+      const coronaAlpha = clamp(motion.corona * (scheme === 'dark' ? 0.55 : 0.5))
       const corona = context.createRadialGradient(centre, centre, radius * 0.9, centre, centre, reach)
       corona.addColorStop(0, rgbToCss(accent, coronaAlpha))
       corona.addColorStop(0.3, rgbToCss(accent, coronaAlpha * 0.5))
@@ -627,8 +627,8 @@ function createAuraRenderer(
       if (voice > 0.01) {
         const coreReach = radius * (1.02 + voice * 0.5)
         const core = context.createRadialGradient(centre, centre, radius * 0.95, centre, centre, coreReach)
-        core.addColorStop(0, rgbToCss(accent, 0.6 * voice * lineAlpha))
-        core.addColorStop(0.4, rgbToCss(light, 0.2 * voice * lineAlpha))
+        core.addColorStop(0, rgbToCss(accent, 0.35 * voice * lineAlpha))
+        core.addColorStop(0.4, rgbToCss(light, 0.1 * voice * lineAlpha))
         core.addColorStop(1, rgbToCss(light, 0))
         context.fillStyle = core
         circle(centre, centre, coreReach)
@@ -636,8 +636,8 @@ function createAuraRenderer(
       }
 
       // Rim light: a bright band hugging the glass that flares with the voice.
-      const rimAlpha = clamp((0.3 + motion.glow * 0.4 + motion.speak * 0.3 + motion.listen * 0.4) * lineAlpha)
-      const rimReach = radius * (1.08 + motion.speak * 0.1)
+      const rimAlpha = clamp((0.3 + motion.glow * 0.35 + motion.speak * 0.2 + motion.listen * 0.25) * lineAlpha)
+      const rimReach = radius * (1.06 + motion.speak * 0.04)
       const rim = context.createRadialGradient(centre, centre, radius * 0.97, centre, centre, rimReach)
       rim.addColorStop(0, rgbToCss(light, rimAlpha))
       rim.addColorStop(1, rgbToCss(light, 0))
@@ -657,31 +657,31 @@ function createAuraRenderer(
           : Math.pow(1 - age, 1.3)
         const alpha = clamp(fade * ring.strength)
         if (alpha < 0.005) continue
-        const width = radius * (0.012 + ring.strength * 0.022) * (1 - path * 0.4)
-        context.lineWidth = width * 5
-        context.strokeStyle = rgbToCss(accent, alpha * 0.28)
+        const width = radius * (0.008 + ring.strength * 0.012) * (1 - path * 0.4)
+        context.lineWidth = width * 4
+        context.strokeStyle = rgbToCss(accent, alpha * 0.18)
         circle(centre, centre, ringRadius)
         context.stroke()
         context.lineWidth = width
-        context.strokeStyle = rgbToCss(light, alpha * 0.7 * lineAlpha)
+        context.strokeStyle = rgbToCss(light, alpha * 0.45 * lineAlpha)
         circle(centre, centre, ringRadius)
         context.stroke()
       }
 
       // Orbiters: sparks that circle the orb while it thinks, each with a tail.
       if (motion.orbit > 0.01) {
-        for (const pathRadius of [1.14, 1.25, 1.36]) {
-          context.lineWidth = radius * 0.008
-          context.strokeStyle = rgbToCss(accent, 0.22 * motion.orbit * lineAlpha)
+        for (const pathRadius of [1.14, 1.24]) {
+          context.lineWidth = radius * 0.006
+          context.strokeStyle = rgbToCss(accent, 0.12 * motion.orbit * lineAlpha)
           circle(centre, centre, radius * pathRadius)
           context.stroke()
         }
         for (const orbiter of motion.orbiters) {
           const wobble = Math.sin(motion.time * orbiter.wobble) * 0.05
           const orbitRadius = radius * (orbiter.radius + wobble)
-          const tail = 1.1 + motion.orbit * 1.1
+          const tail = 0.8 + motion.orbit * 0.7
           const direction = orbiter.speed > 0 ? 1 : -1
-          const steps = 18
+          const steps = 14
           for (let step = 0; step < steps; step += 1) {
             const back = (step / steps) * tail
             const angle = orbiter.angle - direction * back
@@ -699,7 +699,7 @@ function createAuraRenderer(
           const x = centre + Math.cos(orbiter.angle) * orbitRadius
           const y = centre + Math.sin(orbiter.angle) * orbitRadius
           const sparkHalo = context.createRadialGradient(x, y, 0, x, y, haloRadius)
-          sparkHalo.addColorStop(0, rgbToCss(accent, 0.8 * motion.orbit))
+          sparkHalo.addColorStop(0, rgbToCss(accent, 0.5 * motion.orbit))
           sparkHalo.addColorStop(1, rgbToCss(accent, 0))
           context.fillStyle = sparkHalo
           circle(x, y, haloRadius)
@@ -710,13 +710,12 @@ function createAuraRenderer(
       // Sweep: the arc that circles while a connection is being made.
       if (motion.sweep > 0.01) {
         const arcs = [
-          { orbitRadius: radius * 1.12, start: motion.time * 2.4, span: Math.PI * 0.6, width: 0.045 },
-          { orbitRadius: radius * 1.26, start: Math.PI - motion.time * 1.5, span: Math.PI * 0.35, width: 0.02 },
+          { orbitRadius: radius * 1.12, start: motion.time * 2.0, span: Math.PI * 0.55, width: 0.025 },
         ]
         for (const { orbitRadius, start, span, width } of arcs) {
           const arc = context.createConicGradient(start, centre, centre)
           arc.addColorStop(0, rgbToCss(light, 0))
-          arc.addColorStop(span / (Math.PI * 2), rgbToCss(light, 0.95 * motion.sweep * lineAlpha))
+          arc.addColorStop(span / (Math.PI * 2), rgbToCss(light, 0.7 * motion.sweep * lineAlpha))
           arc.addColorStop(span / (Math.PI * 2) + 0.001, rgbToCss(light, 0))
           arc.addColorStop(1, rgbToCss(light, 0))
           context.lineWidth = radius * width
@@ -725,7 +724,7 @@ function createAuraRenderer(
           context.arc(centre, centre, orbitRadius, start, start + span)
           context.stroke()
           context.lineWidth = radius * 0.01
-          context.strokeStyle = rgbToCss(deep, 0.3 * motion.sweep * lineAlpha)
+          context.strokeStyle = rgbToCss(deep, 0.2 * motion.sweep * lineAlpha)
           circle(centre, centre, orbitRadius)
           context.stroke()
         }
@@ -890,18 +889,12 @@ export function OceanTheme({
         surge: elastic,
       })
 
-      // The body is elastic: it stretches upward and narrows on each surge of
-      // the voice, squashes back on the release, and never quite sits still.
+      // The body stays a circle. It swells a little with the voice's envelope,
+      // ticks with the beat, and keeps its slow pulse, so it is alive but calm.
       const pulse = (0.5 + 0.5 * Math.sin(pulseClock)) * pulseDepth
-      const breathScale = pulse * 0.022 + Math.sin(breath) * 0.006
-      const stretch = elastic * 0.2 + beat * 0.06 + speak * 0.03
-      const squash = elastic * 0.04 - beat * 0.04 + speak * 0.03
-      const scaleY = 1 + breathScale + stretch + listen * 0.05
-      const scaleX = 1 + breathScale + squash + listen * 0.05
-      const lean = surgeVelocity * 0.9
-      body.style.transform = reducedMotion
-        ? 'none'
-        : `scale(${scaleX}, ${scaleY}) rotate(${lean}deg)`
+      const bodyScale =
+        1 + pulse * 0.018 + Math.sin(breath) * 0.005 + elastic * 0.045 + beat * 0.012 + listen * 0.02
+      body.style.transform = reducedMotion ? 'none' : `scale(${bodyScale})`
 
       aura?.draw({
         time: clock,
