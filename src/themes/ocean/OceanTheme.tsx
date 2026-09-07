@@ -556,36 +556,48 @@ const RING_TRAVEL_RADII = 0.3
 const RING_LIFE_SECONDS = 2.2
 const ORBITER_COUNT = 3
 /**
- * The mouth is prosody, not a meter. A voice's loudness barely changes across
- * a sentence, and a mouth that flicks open and shut on every syllable reads
- * as a tremor from across the room; what a listener sees in a speaker is the
- * slow swell of phrases and the odd stressed word. So while the state is
- * `speaking` the orb breathes on a band-limited modulation: two octaves of
- * smooth noise, none of it faster than about a hertz, under a phrase-long
- * envelope, with a stressed word lifting it every few seconds. Nothing in it
- * has a corner, so nothing ever snaps.
+ * The mouth is speech as the eye knows it, not a meter. What reads as
+ * "talking" from across a room is rhythm: syllables at three to four a
+ * second, grouped into words with a beat between them and a breath between
+ * phrases, one syllable in a word carrying the stress. So while the state is
+ * `speaking` the orb plays sequences of syllables — a run, a stressed word, a
+ * trailing-off, a held vowel, a breath — chained at random, each syllable an
+ * overlapping swell with a quick rise and a slower fall, all of it over a
+ * slow floor that never quite closes. Nothing is read off the audio; it is
+ * written for perception.
  */
-const PROSODY_BASE_HZ = 0.5
-const PROSODY_DETAIL_HZ = 1.1
-const PROSODY_DETAIL_WEIGHT = 0.4
-const PHRASE_HZ = 0.16
-const STRESS_MIN_SECONDS = 2.4
-const STRESS_SPAN_SECONDS = 3.6
-const STRESS_SECONDS = 1.1
-const STRESS_LIFT = 0.4
-const MOUTH_FOLLOW = 6
+const SYLLABLE_ATTACK = 0.3
+/** A syllable's swell outlasts its beat, so the mouth does not close between words of one run. */
+const SYLLABLE_OVERLAP = 1.25
+const FLOOR_BASE = 0.1
+const FLOOR_RANGE = 0.14
+const FLOOR_HZ = 0.35
+const MOUTH_FOLLOW = 26
 const MOUTH_FOLLOW_REST = 3.5
 /** The orb grows this much of its diameter when fully open. */
-const MOUTH_OPEN_SCALE = 0.09
+const MOUTH_OPEN_SCALE = 0.1
+
+type SequenceKind = 'run' | 'stress' | 'trail' | 'sustain' | 'breath'
+
+interface Syllable {
+  at: number
+  period: number
+  amplitude: number
+  /** Plateau share of the period: a held vowel stays open; a beat does not. */
+  hold: number
+  stressed: boolean
+}
 
 interface Articulation {
   open: number
   clock: number
   seed: number
-  phrasePhase: number
-  untilStress: number
-  stressAt: number
+  syllables: Syllable[]
+  /** When the current sequence, its rest included, is over. */
+  sequenceEnds: number
+  lastKind: SequenceKind
   stressBegan: boolean
+  played: Set<Syllable>
 }
 
 function createArticulation(): Articulation {
@@ -593,14 +605,19 @@ function createArticulation(): Articulation {
     open: 0,
     clock: 0,
     seed: Math.random() * 1000,
-    phrasePhase: Math.random() * Math.PI * 2,
-    untilStress: STRESS_MIN_SECONDS + Math.random() * STRESS_SPAN_SECONDS,
-    stressAt: -Infinity,
+    syllables: [],
+    sequenceEnds: 0,
+    lastKind: 'breath',
     stressBegan: false,
+    played: new Set(),
   }
 }
 
-/** A repeatable 0–1 for every integer, so the noise below is a curve and not a coin toss per frame. */
+function between(min: number, max: number): number {
+  return min + Math.random() * (max - min)
+}
+
+/** A repeatable 0–1 for every integer, so the floor below is a curve and not a coin toss per frame. */
 function lattice(index: number, seed: number): number {
   const x = Math.sin(index * 12.9898 + seed * 78.233) * 43758.5453
   return x - Math.floor(x)
@@ -615,33 +632,124 @@ function smoothNoise(time: number, hz: number, seed: number): number {
   return lattice(index, seed) * (1 - eased) + lattice(index + 1, seed) * eased
 }
 
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = clamp((value - edge0) / (edge1 - edge0))
+  return t * t * (3 - 2 * t)
+}
+
+/** One syllable's swell over its life in 0–1: a quick rise, a hold if any, a slower fall. */
+function swell(life: number, hold: number): number {
+  if (life <= 0 || life >= 1) return 0
+  const fallFrom = SYLLABLE_ATTACK + hold * (1 - SYLLABLE_ATTACK)
+  if (life < SYLLABLE_ATTACK) return smoothstep(0, SYLLABLE_ATTACK, life)
+  if (life < fallFrom) return 1
+  return 1 - smoothstep(fallFrom, 1, life)
+}
+
+function nextKind(last: SequenceKind): SequenceKind {
+  const draw = Math.random()
+  if (last === 'trail') return draw < 0.7 ? 'breath' : 'run'
+  if (last === 'breath') return draw < 0.75 ? 'run' : 'stress'
+  if (draw < 0.42) return 'run'
+  if (draw < 0.6) return 'stress'
+  if (draw < 0.76) return 'trail'
+  if (draw < 0.88) return 'sustain'
+  return 'breath'
+}
+
 /**
- * Advances the mouth by one frame. Returns true on the frame a stressed word
- * begins, which is what the speaking rings are timed to.
+ * Writes the next sequence's syllables from `from`, and returns when the
+ * sequence is over, its closing rest included.
+ */
+function composeSequence(mouth: Articulation, from: number): number {
+  const kind = nextKind(mouth.lastKind)
+  mouth.lastKind = kind
+  let at = from
+  const push = (period: number, amplitude: number, hold = 0, stressed = false) => {
+    mouth.syllables.push({ at, period, amplitude, hold, stressed })
+    at += period
+  }
+  switch (kind) {
+    case 'run': {
+      const count = 3 + Math.floor(Math.random() * 5)
+      const period = between(0.23, 0.33)
+      const accent = Math.floor(Math.random() * count)
+      for (let index = 0; index < count; index++) {
+        const arc = Math.sin((Math.PI * (index + 0.5)) / count)
+        const amplitude = 0.42 + arc * 0.3 + between(-0.08, 0.08)
+        push(
+          period * between(0.92, 1.08),
+          index === accent ? Math.min(1, amplitude + 0.28) : amplitude,
+          0,
+          index === accent,
+        )
+      }
+      return at + between(0.1, 0.28)
+    }
+    case 'stress': {
+      const count = 1 + Math.floor(Math.random() * 2)
+      for (let index = 0; index < count; index++) {
+        push(between(0.3, 0.42), between(0.9, 1), 0.15, index === 0)
+      }
+      return at + between(0.18, 0.38)
+    }
+    case 'trail': {
+      const count = 3 + Math.floor(Math.random() * 3)
+      let period = between(0.24, 0.3)
+      for (let index = 0; index < count; index++) {
+        const fade = 1 - index / count
+        push(period, 0.28 + fade * 0.5, 0, false)
+        period *= 1.12
+      }
+      return at + between(0.35, 0.7)
+    }
+    case 'sustain': {
+      push(between(0.6, 1), between(0.72, 0.88), 0.45, true)
+      return at + between(0.08, 0.22)
+    }
+    case 'breath':
+      return at + between(0.4, 0.85)
+  }
+}
+
+/**
+ * Advances the mouth by one frame. Returns true on the frame a stressed
+ * syllable begins, which is what the speaking rings are timed to.
  */
 function articulate(mouth: Articulation, speaking: boolean, deltaSeconds: number): boolean {
   mouth.stressBegan = false
   if (!speaking) {
+    mouth.syllables.length = 0
+    mouth.played.clear()
+    mouth.sequenceEnds = mouth.clock
+    mouth.lastKind = 'breath'
     mouth.open = damp(mouth.open, 0, MOUTH_FOLLOW_REST, deltaSeconds)
     return false
   }
   mouth.clock += deltaSeconds
-  mouth.untilStress -= deltaSeconds
-  if (mouth.untilStress <= 0) {
-    mouth.stressAt = mouth.clock
-    mouth.stressBegan = true
-    mouth.untilStress = STRESS_MIN_SECONDS + Math.random() * STRESS_SPAN_SECONDS
+  const now = mouth.clock
+  while (mouth.sequenceEnds <= now + 0.5) {
+    mouth.sequenceEnds = composeSequence(mouth, Math.max(mouth.sequenceEnds, now))
   }
 
-  const base = smoothNoise(mouth.clock, PROSODY_BASE_HZ, mouth.seed)
-  const detail = smoothNoise(mouth.clock, PROSODY_DETAIL_HZ, mouth.seed + 1)
-  const texture = (base + detail * PROSODY_DETAIL_WEIGHT) / (1 + PROSODY_DETAIL_WEIGHT)
-  const phrase =
-    0.55 + 0.45 * (0.5 + 0.5 * Math.sin(mouth.clock * Math.PI * 2 * PHRASE_HZ + mouth.phrasePhase))
-  const sinceStress = (mouth.clock - mouth.stressAt) / STRESS_SECONDS
-  const stress = sinceStress < 1 ? 0.5 - 0.5 * Math.cos(sinceStress * Math.PI * 2) : 0
-  const target = clamp(phrase * (0.15 + 0.85 * texture) + stress * STRESS_LIFT)
+  let voice = 0
+  for (const syllable of mouth.syllables) {
+    const life = (now - syllable.at) / (syllable.period * SYLLABLE_OVERLAP)
+    if (life < 0) continue
+    if (!mouth.played.has(syllable)) {
+      mouth.played.add(syllable)
+      if (syllable.stressed) mouth.stressBegan = true
+    }
+    voice = Math.max(voice, syllable.amplitude * swell(life, syllable.hold))
+  }
+  mouth.syllables = mouth.syllables.filter((syllable) => {
+    const alive = now < syllable.at + syllable.period * SYLLABLE_OVERLAP
+    if (!alive) mouth.played.delete(syllable)
+    return alive
+  })
 
+  const floor = FLOOR_BASE + FLOOR_RANGE * smoothNoise(now, FLOOR_HZ, mouth.seed)
+  const target = clamp(floor + voice * (1 - floor))
   mouth.open = damp(mouth.open, target, MOUTH_FOLLOW, deltaSeconds)
   return mouth.stressBegan
 }
@@ -975,9 +1083,9 @@ export function OceanTheme({
       // How much the sea answers the voice is the state's, not the meter's:
       // it settles at a steady murmur while she talks and the mouth on top of
       // it carries the words.
-      const speakTarget = speaking ? 0.45 + mouth * 0.35 : 0
+      const speakTarget = speaking ? 0.4 + mouth * 0.5 : 0
       listen = damp(listen, listenTarget, listenTarget > listen ? 10 : 2.2, deltaSeconds)
-      speak = damp(speak, speakTarget, speakTarget > speak ? 3 : 1.5, deltaSeconds)
+      speak = damp(speak, speakTarget, speakTarget > speak ? 7 : 2.5, deltaSeconds)
 
       clock += deltaSeconds
       const targets = resolveTargets(nextState, listen, speak, clock)
@@ -996,7 +1104,7 @@ export function OceanTheme({
 
       // The water inside lifts with the mouth through a soft spring, so the
       // sea swells a beat behind each word rather than jumping with it.
-      const surgeTarget = speaking ? 0.25 + mouth * 0.5 : 0
+      const surgeTarget = speaking ? 0.2 + mouth * 0.6 : 0
       surgeVelocity += (surgeTarget - surge) * SURGE_STIFFNESS * deltaSeconds
       surgeVelocity *= Math.exp(-SURGE_DAMPING * deltaSeconds)
       surge += surgeVelocity * deltaSeconds
